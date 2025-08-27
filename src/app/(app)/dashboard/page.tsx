@@ -304,11 +304,13 @@ export default function DashboardPage() {
   const selectedOrganizer = selectedTicket && selectedEvent?.organizerId ? userOrganizations.find(o => o.id === selectedEvent.organizerId) : null;
   const primaryOrganization = userOrganizations.length > 0 ? userOrganizations[0] : null;
 
-  const displayedTickets = allRecentTickets.slice(0, 7);
+  const displayedTickets = allRecentTickets.slice(0, 6);
   
   const sortedUpgradeHistory = userProfile?.upgradeHistory
     ? [...userProfile.upgradeHistory].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     : [];
+
+  const displayedUpgrades = sortedUpgradeHistory.slice(0, 3);
 
   if (eventsLoading) {
     return <div>Loading dashboard...</div>;
@@ -436,6 +438,44 @@ export default function DashboardPage() {
                     </Button>
                 </CardContent>
             </Card>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Recent Upgrades</CardTitle>
+                    <CardDescription>Your recent plan transactions.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                     {loadingTickets ? (
+                        <p>Loading transactions...</p>
+                    ) : displayedUpgrades.length > 0 ? (
+                        <div className="space-y-4">
+                            {displayedUpgrades.map((upgrade, index) => {
+                                const plan = PLANS[upgrade.planId];
+                                return (
+                                    <div key={index} className="flex items-center gap-4 hover:bg-secondary/50 p-2 rounded-md cursor-pointer" onClick={() => handleViewUpgradeInvoice(upgrade)}>
+                                        <div className="p-2 bg-primary/10 rounded-full">
+                                            <Rocket className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <div className="grid gap-1 flex-1">
+                                            <p className="text-sm font-medium leading-none">Upgrade to {plan.name}</p>
+                                            <p className="text-xs text-muted-foreground">{new Date(upgrade.date).toLocaleDateString()}</p>
+                                        </div>
+                                        <div className="text-sm font-medium">{format(parseInt(plan.price))}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                         <p className="text-sm text-muted-foreground text-center py-4">No upgrade transactions found.</p>
+                    )}
+                </CardContent>
+                <CardFooter>
+                    <Button asChild variant="outline" className="w-full">
+                        <Link href="/dashboard/transactions">
+                            View All Transactions
+                        </Link>
+                    </Button>
+                </CardFooter>
+            </Card>
             <Card className="flex flex-col">
                 <CardHeader>
                     <CardTitle>Recent Sales</CardTitle>
@@ -464,15 +504,13 @@ export default function DashboardPage() {
                          <p className="text-sm text-muted-foreground text-center py-4">No sales transactions found.</p>
                     )}
                 </CardContent>
-                 {allRecentTickets.length > 7 && (
-                    <CardFooter>
-                        <Button asChild variant="outline" className="w-full">
-                            <Link href="/dashboard/wallet">
-                                View All Sales
-                            </Link>
-                        </Button>
-                    </CardFooter>
-                )}
+                <CardFooter>
+                    <Button asChild variant="outline" className="w-full">
+                        <Link href="/dashboard/wallet">
+                            View All Sales
+                        </Link>
+                    </Button>
+                </CardFooter>
             </Card>
         </div>
       </div>
@@ -650,3 +688,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
