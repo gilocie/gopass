@@ -412,33 +412,7 @@ export default function DashboardPage() {
                 )}
                 </CardContent>
             </Card>
-        </div>
-        <div className="lg:col-span-1 space-y-6">
-             <Card>
-                <CardHeader>
-                    <CardTitle>Wallet</CardTitle>
-                    <CardDescription>Your current balance and payout information.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-baseline">
-                            <span className="text-sm text-muted-foreground">Current Balance</span>
-                            <span className="text-2xl font-bold">{format(currentBalance, currency.code !== BASE_CURRENCY_CODE)}</span>
-                        </div>
-                        <div className="flex justify-between items-baseline text-sm">
-                            <span className="text-muted-foreground">Total Paid Out</span>
-                            <span>{format(totalPaidOut, currency.code !== BASE_CURRENCY_CODE)}</span>
-                        </div>
-                    </div>
-                     <Button asChild className="w-full">
-                        <Link href="/dashboard/wallet">
-                            <Wallet className="mr-2 h-4 w-4" />
-                            View Wallet & Transactions
-                        </Link>
-                    </Button>
-                </CardContent>
-            </Card>
-             <Card>
+            <Card>
                 <CardHeader>
                     <CardTitle>Recent Upgrades</CardTitle>
                     <CardDescription>Your recent plan transactions.</CardDescription>
@@ -475,6 +449,32 @@ export default function DashboardPage() {
                         </Link>
                     </Button>
                 </CardFooter>
+            </Card>
+        </div>
+        <div className="lg:col-span-1 space-y-6">
+             <Card>
+                <CardHeader>
+                    <CardTitle>Wallet</CardTitle>
+                    <CardDescription>Your current balance and payout information.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-baseline">
+                            <span className="text-sm text-muted-foreground">Current Balance</span>
+                            <span className="text-2xl font-bold">{format(currentBalance, currency.code !== BASE_CURRENCY_CODE)}</span>
+                        </div>
+                        <div className="flex justify-between items-baseline text-sm">
+                            <span className="text-muted-foreground">Total Paid Out</span>
+                            <span>{format(totalPaidOut, currency.code !== BASE_CURRENCY_CODE)}</span>
+                        </div>
+                    </div>
+                     <Button asChild className="w-full">
+                        <Link href="/dashboard/wallet">
+                            <Wallet className="mr-2 h-4 w-4" />
+                            View Wallet & Transactions
+                        </Link>
+                    </Button>
+                </CardContent>
             </Card>
             <Card className="flex flex-col">
                 <CardHeader>
@@ -688,5 +688,7 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
 
     
