@@ -43,14 +43,6 @@ const nextConfig: NextConfig = {
       }
     ],
   },
-  env: {
-    FIREBASE_API_KEY: "AIzaSyCkjGbGDOH-7eBc9g3qNUTGp-xEj5nBawM",
-    FIREBASE_AUTH_DOMAIN: "gopass-5bbec.firebaseapp.com",
-    FIREBASE_PROJECT_ID: "gopass-5bbec",
-    FIREBASE_STORAGE_BUCKET: "gopass-5bbec.appspot.com",
-    FIREBASE_MESSAGING_SENDER_ID: "823743936276",
-    FIREBASE_APP_ID: "1:823743936276:web:6a2363619e582f948d7401",
-  },
 };
 
 export default nextConfig;
