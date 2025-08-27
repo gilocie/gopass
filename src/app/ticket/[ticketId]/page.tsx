@@ -222,7 +222,7 @@ export default function TicketPage() {
   const benefitsByDay = Array.from({ length: totalDays }, (_, i) => {
     const dayDate = addDays(eventStartDate, i);
     const dayNumber = i + 1;
-    const dayBenefits = ticket.benefits.filter(b => b.days.includes(dayNumber));
+    const dayBenefits = ticket.benefits.filter(b => Array.isArray(b.days) && b.days.includes(dayNumber));
     
     if (dayBenefits.length === 0) return null;
 
