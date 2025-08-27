@@ -181,10 +181,10 @@ export default function EventDetailPage() {
     };
 
     const currentPlan = userProfile?.planId ? PLANS[userProfile.planId] : PLANS['hobby'];
-    const maxTickets = currentPlan.limits.maxTicketsPerEvent;
-    const canCreateTicket = isFinite(maxTickets) ? (event?.ticketsIssued || 0) < maxTickets : true;
-    const ticketsTotal = isFinite(maxTickets) ? maxTickets : event?.ticketsTotal || 0;
-    const ticketProgress = event ? (event.ticketsIssued / ticketsTotal) * 100 : 0;
+    const ticketsTotal = currentPlan.limits.maxTicketsPerEvent;
+    const canCreateTicket = isFinite(ticketsTotal) ? (event?.ticketsIssued || 0) < ticketsTotal : true;
+    const ticketProgress = event && isFinite(ticketsTotal) ? (event.ticketsIssued / ticketsTotal) * 100 : 0;
+
     const ticketUrl = selectedTicket && typeof window !== 'undefined' 
         ? `${window.location.origin}/ticket/${selectedTicket.id}?eventId=${selectedTicket.eventId}` 
         : '';
