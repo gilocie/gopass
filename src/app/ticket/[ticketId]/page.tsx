@@ -122,7 +122,8 @@ export default function ViewTicketPage() {
         const eventStartDate = new Date(event.startDate);
 
         (ticket.benefits || []).forEach(benefit => {
-            (benefit.days || [1]).forEach(dayNum => {
+            const days = Array.isArray(benefit.days) && benefit.days.length > 0 ? benefit.days : [1];
+            days.forEach(dayNum => {
                 let group = grouped.find(g => g.day === dayNum);
                 if (!group) {
                     group = { day: dayNum, date: addDays(eventStartDate, dayNum - 1), benefits: [] };
@@ -165,11 +166,11 @@ export default function ViewTicketPage() {
     const today = startOfToday();
 
     return (
-        <div className="min-h-screen bg-background">
-            <div className="container mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
+        <div className="min-h-screen" style={{ backgroundColor: '#110d19' }}>
+            <div className="container mx-auto max-w-md p-4 sm:p-6 lg:p-8 flex flex-col items-center">
                 <TicketPreview ticket={ticket} event={event} userProfile={userProfile} onExit={() => setIsAuthorized(false)} />
                 
-                <div className="mt-8">
+                <div className="mt-8 w-full">
                     <h2 className="text-2xl font-bold mb-4">Daily Benefits</h2>
                     <div className="space-y-4">
                        {benefitsByDay.map(({ day, date, benefits }) => {
