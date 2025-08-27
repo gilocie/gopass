@@ -18,7 +18,8 @@ import {
   LayoutDashboard,
   Building,
   Settings,
-  DollarSign
+  DollarSign,
+  Wallet
 } from 'lucide-react';
 
 import {
@@ -63,6 +64,7 @@ const navItems = [
   { href: '/', icon: Home, label: 'Home' },
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/dashboard/events', icon: Calendar, label: 'My Events' },
+  { href: '/dashboard/wallet', icon: Wallet, label: 'Wallet' },
   { href: '/dashboard/templates', icon: LayoutTemplate, label: 'Templates' },
   { href: '/dashboard/organization', icon: Building, label: 'My Organization' },
   { href: '/dashboard/transactions', icon: DollarSign, label: 'Transactions' },

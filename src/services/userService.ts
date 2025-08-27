@@ -12,7 +12,7 @@ import {
     signOut,
     User
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import type { PlanId } from '@/lib/plans';
 
@@ -34,6 +34,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
                 displayName: user.displayName,
                 planId: 'hobby', // Default to free plan
                 countryCode: 'US', // Default to USA
+                totalPaidOut: 0,
             };
             await setDoc(userDocRef, newUserProfile);
             return newUserProfile;
@@ -47,6 +48,21 @@ export const updateUserFirestoreProfile = async (uid: string, data: Partial<User
     const userDocRef = doc(db, 'users', uid);
     await updateDoc(userDocRef, data);
 };
+
+// Simulate a payout request
+export const requestPayout = async (uid: string, amount: number): Promise<void> => {
+    const userDocRef = doc(db, 'users', uid);
+    // In a real app, this would trigger a backend process.
+    // For now, we just update the user's totalPaidOut.
+    try {
+        await updateDoc(userDocRef, {
+            totalPaidOut: increment(amount)
+        });
+    } catch (error) {
+        console.error("Error requesting payout:", error);
+        throw new Error("Could not process payout request.");
+    }
+}
 
 
 // Upgrade a user's plan
@@ -72,6 +88,7 @@ export const upgradeUserPlan = async (uid: string, newPlanId: PlanId) => {
                 displayName: user?.displayName || null,
                 planId: newPlanId,
                 upgradeHistory: [upgradeRecord],
+                totalPaidOut: 0,
             };
             await setDoc(userDocRef, newUserProfile);
         } else {

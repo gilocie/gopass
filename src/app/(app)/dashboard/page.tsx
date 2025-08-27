@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X } from 'lucide-react';
+import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestoreEvents } from '@/hooks/use-firestore-events';
 import { EventCard } from '@/components/event-card';
@@ -93,7 +93,9 @@ export default function DashboardPage() {
   const eventsCount = events.filter(e => e.status !== 'deleted').length;
   const canCreateEvent = eventsCount < maxEvents;
   const totalTicketsAvailable = isFinite(maxEvents) ? maxEvents * currentPlan.limits.maxTicketsPerEvent : Infinity;
-  
+  const totalPaidOut = userProfile?.totalPaidOut || 0;
+  const currentBalance = totalRevenue - totalPaidOut;
+
   const stats = [
     { title: `Total Revenue (${currency.code})`, value: format(totalRevenue, currency.code !== BASE_CURRENCY_CODE), change: 'from all events', icon: <DollarSign className="h-4 w-4 text-muted-foreground" /> },
     { title: 'Tickets Sold', value: `${totalTicketsSold} / ${isFinite(totalTicketsAvailable) ? totalTicketsAvailable : '∞'}`, change: 'based on your plan', icon: <Ticket className="h-4 w-4 text-muted-foreground" /> },
@@ -304,7 +306,7 @@ export default function DashboardPage() {
 
   const filteredTickets = allRecentTickets.filter(ticket => 
       ticket.holderName.toLowerCase().includes(filter.toLowerCase())
-  ).slice(0, 5);
+  ).slice(0, 7);
   
   const sortedUpgradeHistory = userProfile?.upgradeHistory
     ? [...userProfile.upgradeHistory].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -414,26 +416,35 @@ export default function DashboardPage() {
         <div className="lg:col-span-1 space-y-6">
              <Card>
                 <CardHeader>
+                    <CardTitle>Wallet</CardTitle>
+                    <CardDescription>Your current balance and payout information.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-baseline">
+                            <span className="text-sm text-muted-foreground">Current Balance</span>
+                            <span className="text-2xl font-bold">{format(currentBalance, currency.code !== BASE_CURRENCY_CODE)}</span>
+                        </div>
+                        <div className="flex justify-between items-baseline text-sm">
+                            <span className="text-muted-foreground">Total Paid Out</span>
+                            <span>{format(totalPaidOut, currency.code !== BASE_CURRENCY_CODE)}</span>
+                        </div>
+                    </div>
+                     <Button asChild className="w-full">
+                        <Link href="/dashboard/wallet">
+                            <Wallet className="mr-2 h-4 w-4" />
+                            View Wallet & Transactions
+                        </Link>
+                    </Button>
+                </CardContent>
+            </Card>
+            <Card className="flex flex-col">
+                <CardHeader>
                     <CardTitle>Recent Sales</CardTitle>
                     <CardDescription>A list of your most recent ticket sales.</CardDescription>
-                    <div className="flex items-center gap-2 pt-2">
-                        <div className="relative flex-1">
-                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                             <Input 
-                                placeholder="Filter by name..." 
-                                className="pl-8" 
-                                value={filter} 
-                                onChange={(e) => setFilter(e.target.value)} 
-                            />
-                        </div>
-                        <Button variant="outline" size="icon">
-                            <FileDown className="h-4 w-4"/>
-                            <span className="sr-only">Export CSV</span>
-                        </Button>
-                    </div>
                 </CardHeader>
-                <CardContent>
-                    {loadingTickets ? (
+                <CardContent className="flex-grow">
+                     {loadingTickets ? (
                         <p>Loading transactions...</p>
                     ) : filteredTickets.length > 0 ? (
                         <div className="space-y-4">
@@ -455,36 +466,11 @@ export default function DashboardPage() {
                          <p className="text-sm text-muted-foreground text-center py-4">No sales transactions found.</p>
                     )}
                 </CardContent>
-            </Card>
-            <Card className="flex flex-col">
-                <CardHeader>
-                    <CardTitle>Upgrade Transactions</CardTitle>
-                </CardHeader>
-                <CardContent className="flex-grow">
-                    {sortedUpgradeHistory.length > 0 ? (
-                        <div className="space-y-4">
-                            {sortedUpgradeHistory.slice(0, 5).map((upgrade, index) => (
-                                <div key={index} className="flex items-center gap-4 hover:bg-secondary/50 p-2 rounded-md cursor-pointer" onClick={() => handleViewUpgradeInvoice(upgrade)}>
-                                    <div className="p-2 bg-primary/10 rounded-full">
-                                        <Rocket className="h-5 w-5 text-primary" />
-                                    </div>
-                                    <div className="grid gap-1 flex-1">
-                                        <p className="text-sm font-medium leading-none">Upgraded to {PLANS[upgrade.planId]?.name}</p>
-                                        <p className="text-xs text-muted-foreground">{new Date(upgrade.date).toLocaleDateString()}</p>
-                                    </div>
-                                    <span className="text-sm font-semibold">{format(parseInt(PLANS[upgrade.planId]?.price))}</span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">No plan upgrades yet.</p>
-                    )}
-                </CardContent>
-                {sortedUpgradeHistory.length > 5 && (
+                 {allRecentTickets.length > 7 && (
                     <CardFooter>
                         <Button asChild variant="outline" className="w-full">
-                            <Link href="/dashboard/transactions">
-                                View All Transactions
+                            <Link href="/dashboard/wallet">
+                                View All Sales
                             </Link>
                         </Button>
                     </CardFooter>

@@ -14,6 +14,7 @@ export interface UserProfile {
         date: string; // ISO String
     }[];
     exchangeRates?: { [key: string]: number }; // e.g., { USD: 1750 }
+    totalPaidOut?: number;
 }
 
 export interface Organizer {
