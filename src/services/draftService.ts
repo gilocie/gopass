@@ -1,7 +1,7 @@
 
 import { db } from '@/lib/firebase';
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import type { Benefit } from '@/lib/types';
+import { stripUndefined } from '@/lib/utils';
 
 const getDraftDocRef = (userId: string, draftId: string) => {
     return doc(db, 'users', userId, 'ticketDrafts', draftId);
@@ -12,17 +12,11 @@ export const saveDraft = async (userId: string, draftId: string, draftData: any)
     try {
         const draftDocRef = getDraftDocRef(userId, draftId);
         
-        // Cleanse benefits data to remove undefined optional fields
-        if (draftData.benefits && Array.isArray(draftData.benefits)) {
-            draftData.benefits = draftData.benefits.map((benefit: Benefit) => {
-                const cleanedBenefit: Partial<Benefit> = { ...benefit };
-                if (!cleanedBenefit.startTime) delete cleanedBenefit.startTime;
-                if (!cleanedBenefit.endTime) delete cleanedBenefit.endTime;
-                return cleanedBenefit;
-            });
-        }
+        // Firestore does not support `undefined` values.
+        // We need to strip them out before saving.
+        const cleanedData = stripUndefined(draftData);
         
-        await setDoc(draftDocRef, { ...draftData, lastSaved: serverTimestamp() }, { merge: true });
+        await setDoc(draftDocRef, { ...cleanedData, lastSaved: serverTimestamp() }, { merge: true });
     } catch (error) {
         console.error("Error saving draft: ", error);
         throw new Error("Could not save draft");
