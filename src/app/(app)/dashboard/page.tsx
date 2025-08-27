@@ -304,9 +304,7 @@ export default function DashboardPage() {
   const selectedOrganizer = selectedTicket && selectedEvent?.organizerId ? userOrganizations.find(o => o.id === selectedEvent.organizerId) : null;
   const primaryOrganization = userOrganizations.length > 0 ? userOrganizations[0] : null;
 
-  const filteredTickets = allRecentTickets.filter(ticket => 
-      ticket.holderName.toLowerCase().includes(filter.toLowerCase())
-  ).slice(0, 7);
+  const displayedTickets = allRecentTickets.slice(0, 7);
   
   const sortedUpgradeHistory = userProfile?.upgradeHistory
     ? [...userProfile.upgradeHistory].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -446,9 +444,9 @@ export default function DashboardPage() {
                 <CardContent className="flex-grow">
                      {loadingTickets ? (
                         <p>Loading transactions...</p>
-                    ) : filteredTickets.length > 0 ? (
+                    ) : displayedTickets.length > 0 ? (
                         <div className="space-y-4">
-                            {filteredTickets.map(ticket => (
+                            {displayedTickets.map(ticket => (
                                 <div key={ticket.id} className="flex items-center gap-4 hover:bg-secondary/50 p-2 rounded-md cursor-pointer" onClick={() => handleViewInvoice(ticket)}>
                                     <Avatar className="hidden h-9 w-9 sm:flex">
                                         <AvatarImage src={ticket.holderPhotoUrl} alt={ticket.holderName} />
