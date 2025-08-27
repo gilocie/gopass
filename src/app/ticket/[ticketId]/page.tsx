@@ -13,7 +13,7 @@ import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer } from '
 import { TicketPreview } from '@/components/ticket-preview';
 import PinInput from '@/components/pin-input';
 import { Badge } from '@/components/ui/badge';
-import { addDays, format, differenceInMilliseconds, startOfToday, isAfter, isBefore, parse } from 'date-fns';
+import { addDays, format, differenceInMilliseconds, startOfToday, isAfter, isBefore, parse, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { getUserProfile } from '@/services/userService';
 
@@ -182,17 +182,17 @@ export default function ViewTicketPage() {
                        {benefitsByDay.map(({ day, date, benefits }) => {
                            const dayStart = new Date(date);
                            dayStart.setHours(0,0,0,0);
-                           const isToday = format(dayStart, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+                           const isToday = isSameDay(dayStart, today);
                            const isFutureDay = isAfter(dayStart, today);
                            const isPastDay = isBefore(dayStart, today);
                            
-                           const allUsed = benefits.every(b => b.used);
+                           const allUsedForDay = benefits.every(b => b.used && b.lastUsedDate === format(date, 'yyyy-MM-dd'));
                            
                            const getStatusIcon = () => {
                                if (isFutureDay) return <Lock className="h-5 w-5 text-red-400" />;
                                if (isToday) return <Unlock className="h-5 w-5 text-green-400" />;
                                if (isPastDay) {
-                                   return allUsed ? <CheckCheck className="h-5 w-5 text-green-400" /> : <Check className="h-5 w-5 text-blue-400" />;
+                                   return allUsedForDay ? <CheckCheck className="h-5 w-5 text-green-400" /> : <Check className="h-5 w-5 text-blue-400" />;
                                }
                                return null;
                            }
@@ -215,14 +215,15 @@ export default function ViewTicketPage() {
                                     <CardContent>
                                         <ul className="space-y-2">
                                             {benefits.map(benefit => {
-                                                const endTime = benefit.endTime ? parse(benefit.endTime, 'HH:mm', date) : null;
-                                                const isExpired = !benefit.used && endTime && isAfter(now, endTime);
+                                                const hasBeenUsedOnThisDay = benefit.used && benefit.lastUsedDate === format(date, 'yyyy-MM-dd');
+                                                const endTime = benefit.endTime ? parse(benefit.endTime, date) : null;
+                                                const isExpired = !hasBeenUsedOnThisDay && endTime && isAfter(now, endTime) && isSameDay(date, now);
 
                                                 return (
                                                     <li key={benefit.id} className="flex items-center justify-between p-3 bg-secondary/10 rounded-md text-white">
-                                                        <span className={cn("font-medium", (benefit.used || isExpired) && "line-through text-muted-foreground")}>{benefit.name}</span>
-                                                        <Badge variant={benefit.used ? 'secondary' : isExpired ? 'destructive' : 'default'}>
-                                                            {benefit.used ? 'Used' : isExpired ? 'Expired' : 'Available'}
+                                                        <span className={cn("font-medium", (hasBeenUsedOnThisDay || isExpired) && "line-through text-muted-foreground")}>{benefit.name}</span>
+                                                        <Badge variant={hasBeenUsedOnThisDay ? 'secondary' : isExpired ? 'destructive' : 'default'}>
+                                                            {hasBeenUsedOnThisDay ? 'Used' : isExpired ? 'Expired' : 'Available'}
                                                         </Badge>
                                                     </li>
                                                 );
