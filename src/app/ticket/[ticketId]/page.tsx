@@ -9,11 +9,11 @@ import type { Ticket, Event, Benefit, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Lock, Unlock, Check, CheckCheck } from 'lucide-react';
+import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer } from 'lucide-react';
 import { TicketPreview } from '@/components/ticket-preview';
 import PinInput from '@/components/pin-input';
 import { Badge } from '@/components/ui/badge';
-import { addDays, format, differenceInMilliseconds, startOfToday, isAfter, isBefore } from 'date-fns';
+import { addDays, format, differenceInMilliseconds, startOfToday, isAfter, isBefore, parse } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { getUserProfile } from '@/services/userService';
 
@@ -77,6 +77,12 @@ export default function ViewTicketPage() {
     const [pin, setPin] = React.useState('');
     const [pinError, setPinError] = React.useState('');
     const { toast } = useToast();
+    const [now, setNow] = React.useState(new Date());
+
+    React.useEffect(() => {
+        const timer = setInterval(() => setNow(new Date()), 1000); // Update every second for countdown and status
+        return () => clearInterval(timer);
+    }, []);
 
     React.useEffect(() => {
         const fetchData = async () => {
@@ -171,49 +177,56 @@ export default function ViewTicketPage() {
                 <TicketPreview ticket={ticket} event={event} userProfile={userProfile} onExit={() => setIsAuthorized(false)} />
                 
                 <div className="mt-8 w-full">
-                    <h2 className="text-2xl font-bold mb-4">Daily Benefits</h2>
+                    <h2 className="text-2xl font-bold mb-4 text-white">Daily Benefits</h2>
                     <div className="space-y-4">
                        {benefitsByDay.map(({ day, date, benefits }) => {
-                           const isToday = format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
-                           const isFutureDay = isAfter(date, today);
-                           const isPastDay = isBefore(date, today);
+                           const dayStart = new Date(date);
+                           dayStart.setHours(0,0,0,0);
+                           const isToday = format(dayStart, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+                           const isFutureDay = isAfter(dayStart, today);
+                           const isPastDay = isBefore(dayStart, today);
                            
                            const allUsed = benefits.every(b => b.used);
                            
                            const getStatusIcon = () => {
-                               if (isFutureDay) return <Lock className="h-5 w-5 text-red-500" />;
-                               if (isToday) return <Unlock className="h-5 w-5 text-green-500" />;
+                               if (isFutureDay) return <Lock className="h-5 w-5 text-red-400" />;
+                               if (isToday) return <Unlock className="h-5 w-5 text-green-400" />;
                                if (isPastDay) {
-                                   return allUsed ? <CheckCheck className="h-5 w-5 text-green-500" /> : <Check className="h-5 w-5 text-blue-500" />;
+                                   return allUsed ? <CheckCheck className="h-5 w-5 text-green-400" /> : <Check className="h-5 w-5 text-blue-400" />;
                                }
                                return null;
                            }
 
                            return (
-                                <Card key={day} className="overflow-hidden relative bg-card/80 backdrop-blur-sm">
+                                <Card key={day} className="overflow-hidden relative bg-card/80 backdrop-blur-sm border-white/10">
                                     {isFutureDay && (
                                         <div className="absolute inset-0 bg-black/60 z-10 flex flex-col items-center justify-center text-white">
                                             <Lock className="h-8 w-8 mb-2" />
-                                            <Countdown targetDate={date} />
+                                            <Countdown targetDate={dayStart} />
                                         </div>
                                     )}
-                                    <CardHeader className="flex-row items-center justify-between">
+                                    <CardHeader className="flex-row items-center justify-between text-white">
                                         <div>
                                             <CardTitle>Day {day} Benefits</CardTitle>
-                                            <CardDescription>{format(date, 'EEEE, MMMM d, yyyy')}</CardDescription>
+                                            <CardDescription className="text-white/70">{format(date, 'EEEE, MMMM d, yyyy')}</CardDescription>
                                         </div>
                                         {getStatusIcon()}
                                     </CardHeader>
                                     <CardContent>
                                         <ul className="space-y-2">
-                                            {benefits.map(benefit => (
-                                                <li key={benefit.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-md">
-                                                    <span className={cn("font-medium", benefit.used && "line-through text-muted-foreground")}>{benefit.name}</span>
-                                                    <Badge variant={benefit.used ? 'secondary' : 'default'}>
-                                                        {benefit.used ? 'Used' : 'Available'}
-                                                    </Badge>
-                                                </li>
-                                            ))}
+                                            {benefits.map(benefit => {
+                                                const endTime = benefit.endTime ? parse(benefit.endTime, 'HH:mm', date) : null;
+                                                const isExpired = !benefit.used && endTime && isAfter(now, endTime);
+
+                                                return (
+                                                    <li key={benefit.id} className="flex items-center justify-between p-3 bg-secondary/10 rounded-md text-white">
+                                                        <span className={cn("font-medium", (benefit.used || isExpired) && "line-through text-muted-foreground")}>{benefit.name}</span>
+                                                        <Badge variant={benefit.used ? 'secondary' : isExpired ? 'destructive' : 'default'}>
+                                                            {benefit.used ? 'Used' : isExpired ? 'Expired' : 'Available'}
+                                                        </Badge>
+                                                    </li>
+                                                );
+                                            })}
                                         </ul>
                                     </CardContent>
                                 </Card>
