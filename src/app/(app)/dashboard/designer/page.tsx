@@ -237,19 +237,29 @@ export default function DesignerPage() {
                     ]);
 
                     const draftIsNewer = draftData?.lastSaved && mostRecentTicket?.createdAt && draftData.lastSaved.getTime() > mostRecentTicket.createdAt.getTime();
+                    
+                    const resetBenefits = (benefits: Benefit[]): Benefit[] => {
+                        return benefits.map(b => ({ ...b, used: false, lastUsedDate: undefined }));
+                    };
 
                     if (draftData && (!mostRecentTicket || draftIsNewer)) {
-                        hydrateFromState(draftData);
+                        hydrateFromState({
+                            ...draftData,
+                            benefits: resetBenefits(draftData.benefits || [])
+                        });
                     } else if (mostRecentTicket) {
                         hydrateFromState({
                             ticketType: mostRecentTicket.ticketType,
-                            benefits: mostRecentTicket.benefits, // This is the key change
+                            benefits: resetBenefits(mostRecentTicket.benefits),
                             backgroundImageUrl: mostRecentTicket.backgroundImageUrl || '',
                             backgroundImageOpacity: mostRecentTicket.backgroundImageOpacity,
                             ...event?.ticketTemplate
                         });
                     } else if (event?.ticketTemplate) {
-                        hydrateFromState(event.ticketTemplate as DesignerState);
+                         hydrateFromState({
+                            ...event.ticketTemplate as DesignerState,
+                            benefits: resetBenefits(event.ticketTemplate.benefits || [])
+                        });
                     }
 
                     const newPin = Math.floor(100000 + Math.random() * 900000).toString();
