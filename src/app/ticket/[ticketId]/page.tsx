@@ -9,7 +9,7 @@ import type { Ticket, Event, Benefit, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer } from 'lucide-react';
+import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer, CheckCircle2, XCircle } from 'lucide-react';
 import { TicketPreview } from '@/components/ticket-preview';
 import PinInput from '@/components/pin-input';
 import { Badge } from '@/components/ui/badge';
@@ -172,7 +172,7 @@ export default function ViewTicketPage() {
     const today = startOfToday();
 
     return (
-        <div className="min-h-screen" style={{ backgroundColor: '#110d19' }}>
+        <div className="min-h-screen bg-[#110d19]">
             <div className="container mx-auto max-w-md p-4 sm:p-6 lg:p-8 flex flex-col items-center">
                 <TicketPreview ticket={ticket} event={event} userProfile={userProfile} onExit={() => setIsAuthorized(false)} />
                 
@@ -216,7 +216,7 @@ export default function ViewTicketPage() {
                                         <ul className="space-y-2">
                                             {benefits.map(benefit => {
                                                 const hasBeenUsedOnThisDay = benefit.used && benefit.lastUsedDate === format(date, 'yyyy-MM-dd');
-                                                const endTime = benefit.endTime ? parse(benefit.endTime, date) : null;
+                                                const endTime = benefit.endTime ? parse(benefit.endTime, 'HH:mm', date) : null;
                                                 const isExpired = !hasBeenUsedOnThisDay && endTime && isAfter(now, endTime) && isSameDay(date, now);
 
                                                 return (
