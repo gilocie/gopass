@@ -5,19 +5,20 @@ import * as React from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { getTicketById } from '@/services/ticketService';
 import { getEventById } from '@/services/eventService';
-import type { Ticket, Event, Benefit } from '@/lib/types';
+import type { Ticket, Event, Benefit, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Lock, Unlock } from 'lucide-react';
+import { Loader2, Lock, Unlock, Check, CheckCheck } from 'lucide-react';
 import { TicketPreview } from '@/components/ticket-preview';
 import PinInput from '@/components/pin-input';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { addDays, format, differenceInMilliseconds, startOfToday, isAfter } from 'date-fns';
+import { addDays, format, differenceInMilliseconds, startOfToday, isAfter, isBefore } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { getUserProfile } from '@/services/userService';
 
 const Countdown = ({ targetDate }: { targetDate: Date }) => {
-    const calculateTimeLeft = () => {
+    const calculateTimeLeft = React.useCallback(() => {
         const difference = differenceInMilliseconds(targetDate, new Date());
         let timeLeft = { days: 0, hours: 0, minutes: 0, seconds: 0 };
 
@@ -30,7 +31,7 @@ const Countdown = ({ targetDate }: { targetDate: Date }) => {
             };
         }
         return timeLeft;
-    };
+    }, [targetDate]);
 
     const [timeLeft, setTimeLeft] = React.useState(calculateTimeLeft);
 
@@ -42,18 +43,21 @@ const Countdown = ({ targetDate }: { targetDate: Date }) => {
     });
     
     const { days, hours, minutes, seconds } = timeLeft;
+    const timeParts = [];
+    if (days > 0) timeParts.push(`${days}d`);
+    if (hours > 0) timeParts.push(`${hours}h`);
+    if (minutes > 0) timeParts.push(`${minutes}m`);
+    timeParts.push(`${seconds}s`);
+
 
     if (days === 0 && hours === 0 && minutes === 0 && seconds === 0) {
         return <span className="text-primary font-semibold">Unlocked</span>;
     }
 
     return (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
-            <span>Unlocks in:</span>
-            {days > 0 && <span>{days}d</span>}
-            {hours > 0 && <span>{hours}h</span>}
-            <span>{minutes}m</span>
-            <span>{seconds}s</span>
+        <div className="font-mono text-center">
+            <p className="text-sm">Unlocks in</p>
+            <p className="text-lg font-semibold tracking-wider">{timeParts.join(' ')}</p>
         </div>
     );
 };
@@ -67,6 +71,7 @@ export default function ViewTicketPage() {
     
     const [ticket, setTicket] = React.useState<Ticket | null>(null);
     const [event, setEvent] = React.useState<Event | null>(null);
+    const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
     const [loading, setLoading] = React.useState(true);
     const [isAuthorized, setIsAuthorized] = React.useState(false);
     const [pin, setPin] = React.useState('');
@@ -84,6 +89,10 @@ export default function ViewTicketPage() {
                 if (ticketData) {
                     const eventData = await getEventById(ticketData.eventId);
                     setEvent(eventData);
+                    if (eventData?.organizerId) {
+                        const profile = await getUserProfile(eventData.organizerId);
+                        setUserProfile(profile);
+                    }
                     if (!eventData || (eventIdFromQuery && ticketData.eventId !== eventIdFromQuery)) {
                         toast({ variant: 'destructive', title: 'Mismatch Error', description: 'This ticket does not belong to the specified event.' });
                     }
@@ -113,7 +122,7 @@ export default function ViewTicketPage() {
         const eventStartDate = new Date(event.startDate);
 
         (ticket.benefits || []).forEach(benefit => {
-            (benefit.days || []).forEach(dayNum => {
+            (benefit.days || [1]).forEach(dayNum => {
                 let group = grouped.find(g => g.day === dayNum);
                 if (!group) {
                     group = { day: dayNum, date: addDays(eventStartDate, dayNum - 1), benefits: [] };
@@ -158,45 +167,58 @@ export default function ViewTicketPage() {
     return (
         <div className="min-h-screen bg-background">
             <div className="container mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
-                <TicketPreview ticket={ticket} event={event} onExit={() => setIsAuthorized(false)} />
+                <TicketPreview ticket={ticket} event={event} userProfile={userProfile} onExit={() => setIsAuthorized(false)} />
                 
                 <div className="mt-8">
                     <h2 className="text-2xl font-bold mb-4">Daily Benefits</h2>
-                    <Accordion type="single" collapsible defaultValue={`day-${benefitsByDay.find(d => format(d.date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd'))?.day || 1}`}>
+                    <div className="space-y-4">
                        {benefitsByDay.map(({ day, date, benefits }) => {
+                           const isToday = format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
                            const isFutureDay = isAfter(date, today);
+                           const isPastDay = isBefore(date, today);
+                           
+                           const allUsed = benefits.every(b => b.used);
+                           
+                           const getStatusIcon = () => {
+                               if (isFutureDay) return <Lock className="h-5 w-5 text-red-500" />;
+                               if (isToday) return <Unlock className="h-5 w-5 text-green-500" />;
+                               if (isPastDay) {
+                                   return allUsed ? <CheckCheck className="h-5 w-5 text-green-500" /> : <Check className="h-5 w-5 text-blue-500" />;
+                               }
+                               return null;
+                           }
+
                            return (
-                                <AccordionItem key={day} value={`day-${day}`}>
-                                    <AccordionTrigger disabled={isFutureDay}>
-                                        <div className="flex items-center justify-between w-full">
-                                            <div className="text-left">
-                                                <p className="font-semibold">Day {day} Benefits</p>
-                                                <p className="text-sm text-muted-foreground">{format(date, 'EEEE, MMMM d, yyyy')}</p>
-                                            </div>
-                                            {isFutureDay && (
-                                                <div className="flex items-center gap-2 pr-2">
-                                                    <Lock className="h-4 w-4 text-muted-foreground" />
-                                                    <Countdown targetDate={date} />
-                                                </div>
-                                            )}
+                                <Card key={day} className="overflow-hidden relative bg-card/80 backdrop-blur-sm">
+                                    {isFutureDay && (
+                                        <div className="absolute inset-0 bg-black/60 z-10 flex flex-col items-center justify-center text-white">
+                                            <Lock className="h-8 w-8 mb-2" />
+                                            <Countdown targetDate={date} />
                                         </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent>
+                                    )}
+                                    <CardHeader className="flex-row items-center justify-between">
+                                        <div>
+                                            <CardTitle>Day {day} Benefits</CardTitle>
+                                            <CardDescription>{format(date, 'EEEE, MMMM d, yyyy')}</CardDescription>
+                                        </div>
+                                        {getStatusIcon()}
+                                    </CardHeader>
+                                    <CardContent>
                                         <ul className="space-y-2">
                                             {benefits.map(benefit => (
                                                 <li key={benefit.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-md">
-                                                    <span className="font-medium">{benefit.name}</span>
+                                                    <span className={cn("font-medium", benefit.used && "line-through text-muted-foreground")}>{benefit.name}</span>
                                                     <Badge variant={benefit.used ? 'secondary' : 'default'}>
                                                         {benefit.used ? 'Used' : 'Available'}
                                                     </Badge>
                                                 </li>
                                             ))}
                                         </ul>
-                                    </AccordionContent>
-                                </AccordionItem>
+                                    </CardContent>
+                                </Card>
                            );
                        })}
-                    </Accordion>
+                    </div>
                 </div>
             </div>
         </div>
