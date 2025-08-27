@@ -39,16 +39,19 @@ export const DownloadableTicket = React.forwardRef<HTMLDivElement, DownloadableT
     const benefitsUsed = ticket.benefits.filter(b => b.used).length;
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=${encodeURIComponent('https://gopass.app/ticket/' + ticket.id + '?eventId=' + event.id)}`;
     
-    // Use event template design for consistency
     const template = event.ticketTemplate;
+
+    // Prioritize ticket-specific design, then event template, then defaults
     const primaryColor = template?.primaryColor || '#ffffff';
     const accentColor = template?.accentColor || '#9D4EDD';
     const fontFamily = template?.fontFamily || 'Inter, sans-serif';
     const fontWeight = template?.fontWeight || 'bold';
     const ticketWidth = template?.ticketWidth || 350;
     const ticketHeight = template?.ticketHeight || 570;
-    const backgroundImageUrl = template?.backgroundImageUrl || ticket.backgroundImageUrl || '';
-    const backgroundOpacity = template?.backgroundOpacity !== undefined ? template.backgroundOpacity / 100 : (ticket.backgroundImageOpacity || 0.1);
+    
+    // Ticket-specific background takes precedence
+    const backgroundImageUrl = ticket.backgroundImageUrl || template?.backgroundImageUrl || '';
+    const backgroundOpacity = ticket.backgroundImageOpacity ?? (template?.backgroundOpacity !== undefined ? template.backgroundOpacity / 100 : 0.1);
     
     const backgroundStyle = template?.backgroundType === 'gradient'
       ? { backgroundImage: `linear-gradient(${template.gradientStartColor}, ${template.gradientEndColor})` }
