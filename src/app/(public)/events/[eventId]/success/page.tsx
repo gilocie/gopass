@@ -215,7 +215,7 @@ export default function PurchaseSuccessPage() {
         return <div className="flex min-h-screen items-center justify-center">Loading your ticket details...</div>
     }
 
-    const ticketUrl = `${window.location.origin}/ticket/${purchaseDetails.ticketId}?eventId=${eventId}`;
+    const ticketUrl = `/ticket/${purchaseDetails.ticketId}?eventId=${eventId}`;
     const createdAtDate = ticket?.createdAt instanceof Date ? ticket.createdAt : (ticket?.createdAt ? new Date((ticket.createdAt as any).seconds * 1000) : null);
 
     return (
@@ -234,7 +234,7 @@ export default function PurchaseSuccessPage() {
                     <div className="p-4 bg-secondary rounded-md space-y-2 text-left">
                         <div>
                             <p className="text-sm font-semibold">Ticket Link:</p>
-                            <p className="font-mono text-xs break-all">{ticketUrl}</p>
+                            <p className="font-mono text-xs break-all">{`${window.location.origin}${ticketUrl}`}</p>
                         </div>
                          <div>
                             <p className="text-sm font-semibold">Your 6-Digit PIN:</p>

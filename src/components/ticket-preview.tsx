@@ -10,6 +10,7 @@ import { format, isSameMonth, isSameYear } from 'date-fns';
 import Image from 'next/image';
 import { Button } from './ui/button';
 import Logo from './logo';
+import { cn } from '@/lib/utils';
 
 interface TicketPreviewProps {
     ticket: Ticket;
@@ -60,6 +61,10 @@ export const TicketPreview = ({ ticket, event, userProfile, onExit }: TicketPrev
     const backgroundStyle = template?.backgroundType === 'gradient'
       ? { backgroundImage: `linear-gradient(${template.gradientStartColor}, ${template.gradientEndColor})` }
       : { backgroundColor: template?.solidBackgroundColor || '#110d19' };
+
+    const exitButtonGradient = {
+      backgroundImage: `linear-gradient(to right, ${template?.gradientStartColor || '#2b1f42'} 0%, ${template?.solidBackgroundColor || '#110d19'} 100%)`
+    }
     
     return (
         <div 
@@ -136,7 +141,15 @@ export const TicketPreview = ({ ticket, event, userProfile, onExit }: TicketPrev
                     </div>
                      {onExit && (
                         <div className="pt-2">
-                             <Button onClick={onExit} variant="outline" size="sm" className="w-full bg-transparent hover:bg-white/10 text-white border-white/20">
+                             <Button
+                                onClick={onExit}
+                                size="sm"
+                                className={cn(
+                                    "w-full text-white border-white/20 hover:border-white/50",
+                                    "bg-gradient-to-r hover:opacity-90 transition-all"
+                                )}
+                                style={exitButtonGradient}
+                            >
                                 <LogOut className="mr-2 h-4 w-4" /> Exit
                             </Button>
                         </div>
