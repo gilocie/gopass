@@ -119,7 +119,6 @@ export default function DesignerPage() {
     const [isCreationComplete, setIsCreationComplete] = React.useState(false);
     const [showPreviewDialog, setShowPreviewDialog] = React.useState(false);
     const [newTicketId, setNewTicketId] = React.useState(ticketId || 'tkt_xyz123abc');
-    const [showFullDescription, setShowFullDescription] = React.useState(false);
     const [isCopied, setIsCopied] = React.useState(false);
     const [templates, setTemplates] = useLocalStorage('ticket-templates', []);
     
@@ -244,7 +243,7 @@ export default function DesignerPage() {
                     } else if (mostRecentTicket) {
                         hydrateFromState({
                             ticketType: mostRecentTicket.ticketType,
-                            benefits: mostRecentTicket.benefits,
+                            benefits: mostRecentTicket.benefits, // This is the key change
                             backgroundImageUrl: mostRecentTicket.backgroundImageUrl || '',
                             backgroundImageOpacity: mostRecentTicket.backgroundImageOpacity,
                             ...event?.ticketTemplate
@@ -555,14 +554,6 @@ export default function DesignerPage() {
                             <CardTitle>Event Details</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2 text-sm">
-                            <p className="text-muted-foreground">
-                                {event.description && (showFullDescription ? event.description : `${event.description.substring(0, 100)}...`)}
-                                {event.description && event.description.length > 100 && (
-                                    <Button variant="link" className="p-0 h-auto ml-1 text-xs" onClick={() => setShowFullDescription(!showFullDescription)}>
-                                        {showFullDescription ? 'View less' : 'View more'}
-                                    </Button>
-                                )}
-                            </p>
                             <p><span className="font-semibold">Location:</span> {event.location}, {event.country}</p>
                             <p><span className="font-semibold">Date:</span> {eventDate}</p>
                         </CardContent>
