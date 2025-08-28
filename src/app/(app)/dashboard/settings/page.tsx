@@ -12,7 +12,7 @@ import { useAuth } from '@/hooks/use-auth';
 import type { Organizer, UserProfile } from '@/lib/types';
 import { getOrganizersByUserId, updateOrganizer } from '@/services/organizerService';
 import { Banner } from '@/components/ui/banner';
-import { Save, Loader2, CreditCard, User, Building, Trash2, Globe } from 'lucide-react';
+import { Save, Loader2, CreditCard, User, Building, Trash2, Globe, Banknote } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
@@ -34,6 +34,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { countries, BASE_CURRENCY_CODE } from '@/lib/currency';
+import Link from 'next/link';
 
 // Schemas for form validation
 const profileFormSchema = z.object({
@@ -60,6 +61,7 @@ export default function SettingsPage() {
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [isSavingOrg, setIsSavingOrg] = React.useState(false);
+  const [isSavingPayments, setIsSavingPayments] = React.useState(false);
   const [isSavingProfile, setIsSavingProfile] = React.useState(false);
   const [isChangingPassword, setIsChangingPassword] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -70,6 +72,14 @@ export default function SettingsPage() {
   const [description, setDescription] = React.useState('');
   const [logoUrl, setLogoUrl] = React.useState<string | null>(null);
   
+  // Payment form state
+  const [bankName, setBankName] = React.useState('');
+  const [accountNumber, setAccountNumber] = React.useState('');
+  const [accountName, setAccountName] = React.useState('');
+  const [mobileMoneyProvider, setMobileMoneyProvider] = React.useState('');
+  const [mobileMoneyNumber, setMobileMoneyNumber] = React.useState('');
+  const [mobileMoneyAccountName, setMobileMoneyAccountName] = React.useState('');
+
   // Localization state
   const [selectedCountryCode, setSelectedCountryCode] = React.useState('US');
   const [exchangeRates, setExchangeRates] = React.useState<{ [key: string]: number }>({});
@@ -107,6 +117,14 @@ export default function SettingsPage() {
             setName(mainOrg.name);
             setDescription(mainOrg.description);
             setLogoUrl(mainOrg.logoUrl || null);
+
+            // Populate payment fields
+            setBankName(mainOrg.paymentDetails?.wireTransfer?.bankName || '');
+            setAccountNumber(mainOrg.paymentDetails?.wireTransfer?.accountNumber || '');
+            setAccountName(mainOrg.paymentDetails?.wireTransfer?.accountName || '');
+            setMobileMoneyProvider(mainOrg.paymentDetails?.mobileMoney?.provider || '');
+            setMobileMoneyNumber(mainOrg.paymentDetails?.mobileMoney?.phoneNumber || '');
+            setMobileMoneyAccountName(mainOrg.paymentDetails?.mobileMoney?.accountName || '');
         }
         
         profileForm.reset({
@@ -146,6 +164,33 @@ export default function SettingsPage() {
     }
   };
   
+   const handleSavePayments = async () => {
+    if (!organizer) return;
+    setIsSavingPayments(true);
+
+    const paymentDetails: Organizer['paymentDetails'] = {
+        wireTransfer: {
+            bankName,
+            accountNumber,
+            accountName
+        },
+        mobileMoney: {
+            provider: mobileMoneyProvider,
+            phoneNumber: mobileMoneyNumber,
+            accountName: mobileMoneyAccountName
+        }
+    };
+
+    try {
+        await updateOrganizer(organizer.id, { paymentDetails });
+        toast({ title: "Payment Settings Saved", description: "Your manual payment methods have been updated." });
+    } catch (error) {
+        toast({ variant: "destructive", title: "Save Failed", description: "Could not save payment settings." });
+    } finally {
+        setIsSavingPayments(false);
+    }
+  };
+
   const handleUpdateProfile = async (values: z.infer<typeof profileFormSchema>) => {
       if (!user) return;
       setIsSavingProfile(true);
@@ -209,9 +254,10 @@ export default function SettingsPage() {
       </div>
 
        <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="profile"><Building className="mr-2 h-4 w-4" /> Profile</TabsTrigger>
           <TabsTrigger value="account"><User className="mr-2 h-4 w-4" /> Account</TabsTrigger>
+          <TabsTrigger value="payments"><Banknote className="mr-2 h-4 w-4" /> Payments</TabsTrigger>
           <TabsTrigger value="billing"><CreditCard className="mr-2 h-4 w-4" /> Billing</TabsTrigger>
         </TabsList>
         <TabsContent value="profile">
@@ -430,6 +476,68 @@ export default function SettingsPage() {
                             </AlertDialog>
                          </div>
                     </div>
+                </CardContent>
+            </Card>
+        </TabsContent>
+         <TabsContent value="payments">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Payment Methods</CardTitle>
+                    <CardDescription>Configure how you receive manual payments from attendees. These details will be shown to users who select a manual payment option.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                     {organizer ? (
+                        <>
+                            {/* Wire Transfer */}
+                            <div className="space-y-4">
+                                <h3 className="font-semibold text-lg">Wire Transfer / Bank Deposit</h3>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="bank-name">Bank Name</Label>
+                                    <Input id="bank-name" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g., National Bank" />
+                                </div>
+                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="account-name">Account Name</Label>
+                                        <Input id="account-name" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="e.g., Awesome Events Inc." />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="account-number">Account Number</Label>
+                                        <Input id="account-number" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="e.g., 100200300400" />
+                                    </div>
+                                </div>
+                            </div>
+                            <Separator />
+                            {/* Mobile Money */}
+                            <div className="space-y-4">
+                                <h3 className="font-semibold text-lg">Mobile Money</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="momo-provider">Provider</Label>
+                                        <Input id="momo-provider" value={mobileMoneyProvider} onChange={(e) => setMobileMoneyProvider(e.target.value)} placeholder="e.g., Airtel Money, TNM Mpamba" />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="momo-number">Phone Number</Label>
+                                        <Input id="momo-number" value={mobileMoneyNumber} onChange={(e) => setMobileMoneyNumber(e.target.value)} placeholder="e.g., 0888123456" />
+                                    </div>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="momo-name">Registered Account Name</Label>
+                                    <Input id="momo-name" value={mobileMoneyAccountName} onChange={(e) => setMobileMoneyAccountName(e.target.value)} placeholder="e.g., John Doe" />
+                                </div>
+                            </div>
+                            <div className="flex justify-end">
+                                <Button onClick={handleSavePayments} disabled={isSavingPayments}>
+                                    {isSavingPayments ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
+                                    {isSavingPayments ? 'Saving...' : 'Save Payment Methods'}
+                                </Button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="text-center text-muted-foreground p-8">
+                            <p>You must have an organizer profile to configure payment methods.</p>
+                             <Button asChild variant="link"><Link href="/dashboard/organization/new">Create one now</Link></Button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </TabsContent>

@@ -28,6 +28,19 @@ export interface Organizer {
     contactEmail?: string;
     contactPhone?: string;
     isActive: boolean;
+    paymentDetails?: {
+        wireTransfer?: {
+            bankName: string;
+            accountNumber: string;
+            accountName: string;
+            branch?: string;
+        };
+        mobileMoney?: {
+            provider: string;
+            phoneNumber: string;
+            accountName: string;
+        };
+    };
 }
 
 export type OmitIdOrganizer = Omit<Organizer, 'id'>;
@@ -111,6 +124,8 @@ export interface Ticket {
     status: 'active' | 'cancelled' | 'used';
     createdAt?: Date;
     totalPaid?: number;
+    paymentMethod?: 'manual' | 'online';
+    paymentStatus?: 'pending' | 'awaiting-confirmation' | 'completed' | 'failed';
 }
 
 export type OmitIdTicket = Omit<Ticket, 'id'>;
