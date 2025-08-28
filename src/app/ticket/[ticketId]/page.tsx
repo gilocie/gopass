@@ -3,19 +3,21 @@
 
 import * as React from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { getTicketById } from '@/services/ticketService';
+import { getTicketById, updateTicket } from '@/services/ticketService';
 import { getEventById } from '@/services/eventService';
 import type { Ticket, Event, Benefit, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer, CheckCircle2, XCircle } from 'lucide-react';
+import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { TicketPreview } from '@/components/ticket-preview';
 import PinInput from '@/components/pin-input';
 import { Badge } from '@/components/ui/badge';
 import { addDays, format, differenceInMilliseconds, startOfToday, isAfter, isBefore, parse, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { getUserProfile } from '@/services/userService';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const Countdown = ({ targetDate }: { targetDate: Date }) => {
     const calculateTimeLeft = React.useCallback(() => {
@@ -85,33 +87,39 @@ export default function ViewTicketPage() {
     }, []);
 
     React.useEffect(() => {
-        const fetchData = async () => {
-            if (!ticketId) return;
-            setLoading(true);
-            try {
-                const ticketData = await getTicketById(ticketId);
+        if (!ticketId) return;
+        setLoading(true);
+
+        // Set up a real-time listener for the ticket
+        const ticketDocRef = doc(db, 'tickets', ticketId);
+        const unsubscribe = onSnapshot(ticketDocRef, async (doc) => {
+            if (doc.exists()) {
+                const ticketData = { id: doc.id, ...doc.data() } as Ticket;
                 setTicket(ticketData);
 
-                if (ticketData) {
+                // Fetch event data only if it hasn't been fetched or has changed
+                if (!event || event.id !== ticketData.eventId) {
                     const eventData = await getEventById(ticketData.eventId);
                     setEvent(eventData);
                     if (eventData?.organizerId) {
                         const profile = await getUserProfile(eventData.organizerId);
                         setUserProfile(profile);
                     }
-                    if (!eventData || (eventIdFromQuery && ticketData.eventId !== eventIdFromQuery)) {
-                        toast({ variant: 'destructive', title: 'Mismatch Error', description: 'This ticket does not belong to the specified event.' });
-                    }
                 }
-            } catch (error) {
-                console.error("Error fetching data:", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not load ticket details.' });
-            } finally {
-                setLoading(false);
+            } else {
+                setTicket(null);
+                setEvent(null);
+                toast({ variant: 'destructive', title: 'Error', description: 'Ticket not found.' });
             }
-        };
-        fetchData();
-    }, [ticketId, eventIdFromQuery, toast]);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error with real-time ticket listener:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load ticket details in real-time.' });
+            setLoading(false);
+        });
+
+        return () => unsubscribe(); // Cleanup listener on component unmount
+    }, [ticketId, eventIdFromQuery, toast, event]);
     
     const handleAuthorize = () => {
         if (ticket && pin === ticket.pin) {
@@ -190,14 +198,16 @@ export default function ViewTicketPage() {
                                if (isFutureDay) return <Lock className="h-5 w-5 text-red-400" />;
                                if (isToday) return <Unlock className="h-5 w-5 text-green-400" />;
                                if (isPastDay) {
-                                   const usedCount = benefits.filter(b => b.used && b.lastUsedDate === format(date, 'yyyy-MM-dd')).length;
-                                   if (usedCount === benefits.length) {
-                                       return <CheckCheck className="h-5 w-5 text-green-400" />; // All used
+                                   const benefitsForDay = benefits.filter(b => b.days.includes(day));
+                                   const usedCount = benefitsForDay.filter(b => b.used && b.lastUsedDate === format(date, 'yyyy-MM-dd')).length;
+                                   
+                                   if (usedCount === benefitsForDay.length) {
+                                       return <CheckCheck className="h-5 w-5 text-green-400" />;
                                    }
                                    if (usedCount === 0) {
-                                       return <CheckCheck className="h-5 w-5 text-blue-400" />; // None used
+                                       return <CheckCheck className="h-5 w-5 text-blue-400" />;
                                    }
-                                   return <Check className="h-5 w-5 text-blue-400" />; // Some used
+                                   return <Check className="h-5 w-5 text-blue-400" />;
                                }
                                return null;
                            }
@@ -219,7 +229,7 @@ export default function ViewTicketPage() {
                                     </CardHeader>
                                     <CardContent>
                                         <ul className="space-y-2">
-                                            {benefits.map(benefit => {
+                                            {benefits.filter(b => b.days.includes(day)).map(benefit => {
                                                 const hasBeenUsedOnThisDay = benefit.used && benefit.lastUsedDate === format(date, 'yyyy-MM-dd');
                                                 const endTimeString = benefit.endTime || '';
                                                 const endTime = endTimeString ? parse(endTimeString, 'HH:mm', now) : null;
@@ -246,4 +256,3 @@ export default function ViewTicketPage() {
         </div>
     );
 }
-
