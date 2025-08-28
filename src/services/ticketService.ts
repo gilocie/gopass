@@ -22,20 +22,24 @@ const toDate = (timestamp: Timestamp | Date | undefined): Date | undefined => {
 
 
 // Create a new ticket
-export const addTicket = async (ticketData: OmitIdTicket): Promise<{ id: string }> => {
+export const addTicket = async (ticketData: OmitIdTicket): Promise<string> => {
     try {
-        const ticketWithTimestamp = { ...ticketData, createdAt: serverTimestamp() };
-        const docRef = await addDoc(ticketsCollection, stripUndefined(ticketWithTimestamp));
+        // Ensure createdAt is always a valid Date object or serverTimestamp for Firestore
+        const ticketWithTimestamp = { ...ticketData, createdAt: new Date() };
+        const docRef = await addDoc(ticketsCollection, stripUndefined({
+             ...ticketWithTimestamp,
+             createdAt: serverTimestamp() // Use serverTimestamp for Firestore consistency
+        }));
         
         // Increment the ticketsIssued count on the event only if payment is not manual or already completed
-        if (ticketData.paymentMethod !== 'manual' && ticketData.paymentStatus === 'completed') {
+        if (ticketData.paymentMethod !== 'manual' || ticketData.paymentStatus === 'completed') {
             const eventDocRef = doc(db, 'events', ticketData.eventId);
             await updateDoc(eventDocRef, {
                 ticketsIssued: increment(1)
             });
         }
         
-        return { id: docRef.id };
+        return docRef.id;
 
     } catch (error) {
         console.error("Error adding ticket document: ", error);
