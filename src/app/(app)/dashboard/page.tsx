@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X, Wallet, BadgeCheck, Link as LinkIcon } from 'lucide-react';
+import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X, Wallet, BadgeCheck, Link as LinkIcon, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestoreEvents } from '@/hooks/use-firestore-events';
 import { EventCard } from '@/components/event-card';
@@ -212,13 +212,13 @@ export default function DashboardPage() {
                             return (
                                 `<div class="summary-item">
                                     <span>${benefit.name}</span>
-                                    <span>${format(eventBenefit?.price || 0, selectedEvent.currency !== BASE_CURRENCY_CODE)}</span>
+                                    <span>${format(eventBenefit?.price || 0, true)}</span>
                                 </div>`
                             )
                         }).join('')}
                         <div class="total">
                             <span>Total Paid:</span>
-                            <span>${format(selectedTicket.totalPaid || 0, selectedEvent.currency !== BASE_CURRENCY_CODE)}</span>
+                            <span>${format(selectedTicket.totalPaid || 0, true)}</span>
                         </div>
                     </div>
                 </div>
@@ -344,6 +344,21 @@ export default function DashboardPage() {
             return <Badge variant="secondary" className="bg-yellow-500 text-black">Confirm</Badge>;
         case 'completed':
             return <div className="text-sm font-medium">{format(ticket.totalPaid || 0, isLocal)}</div>;
+        case 'failed':
+            return <Badge variant="destructive">Failed</Badge>;
+        default:
+            return <Badge variant="secondary">N/A</Badge>;
+    }
+  }
+  
+   const getInvoiceStatusBadge = (ticket: TicketType) => {
+    switch(ticket.paymentStatus) {
+        case 'pending':
+            return <Badge variant="outline">Pending Payment</Badge>;
+        case 'awaiting-confirmation':
+            return <Badge variant="secondary" className="bg-yellow-500 text-black">Awaiting Confirmation</Badge>;
+        case 'completed':
+            return <Badge variant="default" className="bg-green-600">Completed</Badge>;
         case 'failed':
             return <Badge variant="destructive">Failed</Badge>;
         default:
@@ -575,7 +590,7 @@ export default function DashboardPage() {
                                         </div>
                                     </div>
                                 </div>
-                                {getStatusBadge(selectedTicket)}
+                                {getInvoiceStatusBadge(selectedTicket)}
                             </div>
                             <Separator className="my-4" />
                             <div className="space-y-2">
@@ -599,14 +614,14 @@ export default function DashboardPage() {
                                     return (
                                         <div key={benefit.id} className="flex justify-between text-sm">
                                             <span>{benefit.name}</span>
-                                            <span>{format(eventBenefit?.price || 0, selectedEvent.currency !== BASE_CURRENCY_CODE)}</span>
+                                            <span>{format(eventBenefit?.price || 0, true)}</span>
                                         </div>
                                     )
                                 })}
                                 <Separator className="my-2"/>
                                 <div className="flex justify-between font-bold text-base">
                                     <span>Total Paid:</span>
-                                    <span>{format(selectedTicket.totalPaid || 0, selectedEvent.currency !== BASE_CURRENCY_CODE)}</span>
+                                    <span>{format(selectedTicket.totalPaid || 0, true)}</span>
                                 </div>
                             </div>
                              {selectedTicket.paymentStatus === 'awaiting-confirmation' && (
