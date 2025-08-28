@@ -216,8 +216,9 @@ export default function ViewTicketPage() {
                                         <ul className="space-y-2">
                                             {benefits.map(benefit => {
                                                 const hasBeenUsedOnThisDay = benefit.used && benefit.lastUsedDate === format(date, 'yyyy-MM-dd');
-                                                const endTime = benefit.endTime ? parse(benefit.endTime, 'HH:mm', date) : null;
-                                                const isExpired = !hasBeenUsedOnThisDay && endTime && isAfter(now, endTime) && isSameDay(date, now);
+                                                const endTime = benefit.endTime ? parse(benefit.endTime, 'HH:mm', now) : null;
+                                                const hasTimeExpiredToday = endTime && isAfter(now, endTime) && isSameDay(date, now);
+                                                const isExpired = !hasBeenUsedOnThisDay && (isPastDay || hasTimeExpiredToday);
 
                                                 return (
                                                     <li key={benefit.id} className="flex items-center justify-between p-3 bg-secondary/10 rounded-md text-white">
