@@ -22,20 +22,20 @@ const toDate = (timestamp: Timestamp | Date | undefined): Date | undefined => {
 
 
 // Create a new ticket
-export const addTicket = async (ticket: OmitIdTicket): Promise<string> => {
+export const addTicket = async (ticketData: OmitIdTicket): Promise<{ id: string }> => {
     try {
-        const ticketWithTimestamp = { ...ticket, createdAt: serverTimestamp() };
+        const ticketWithTimestamp = { ...ticketData, createdAt: serverTimestamp() };
         const docRef = await addDoc(ticketsCollection, stripUndefined(ticketWithTimestamp));
         
-        // Increment the ticketsIssued count on the event only if payment is not manual
-        if (ticket.paymentMethod !== 'manual' && ticket.paymentStatus === 'completed') {
-            const eventDocRef = doc(db, 'events', ticket.eventId);
+        // Increment the ticketsIssued count on the event only if payment is not manual or already completed
+        if (ticketData.paymentMethod !== 'manual' && ticketData.paymentStatus === 'completed') {
+            const eventDocRef = doc(db, 'events', ticketData.eventId);
             await updateDoc(eventDocRef, {
                 ticketsIssued: increment(1)
             });
         }
         
-        return docRef.id;
+        return { id: docRef.id };
 
     } catch (error) {
         console.error("Error adding ticket document: ", error);
@@ -53,7 +53,7 @@ export const getTicketById = async (ticketId: string): Promise<Ticket | null> =>
             return { 
                 id: docSnap.id, 
                 ...data,
-                createdAt: toDate(data.createdAt)
+                createdAt: toDate(data.createdAt as Timestamp)
             } as Ticket;
         }
         return null;
@@ -74,7 +74,7 @@ export const getTicketsForEvent = async (eventId: string): Promise<Ticket[]> => 
             return { 
                 id: doc.id, 
                 ...data,
-                createdAt: toDate(data.createdAt)
+                createdAt: toDate(data.createdAt as Timestamp)
             } as Ticket
         });
     } catch (error) {
@@ -98,7 +98,7 @@ export const getMostRecentTicketForEvent = async (eventId: string): Promise<Tick
             return { 
                 id: doc.id, 
                 ...data,
-                createdAt: toDate(data.createdAt)
+                createdAt: toDate(data.createdAt as Timestamp)
             } as Ticket;
         });
 
@@ -216,7 +216,7 @@ export function useEventTickets(eventId: string) {
                 ticketsData.push({ 
                     id: doc.id, 
                     ...data,
-                    createdAt: toDate(data.createdAt)
+                    createdAt: toDate(data.createdAt as Timestamp)
                 } as Ticket);
             });
             
@@ -250,7 +250,7 @@ export const useRealtimeTickets = (count: number) => {
                 ticketsData.push({ 
                     id: doc.id, 
                     ...data,
-                    createdAt: toDate(data.createdAt)
+                    createdAt: toDate(data.createdAt as Timestamp)
                 } as Ticket);
             });
             setTickets(ticketsData);
