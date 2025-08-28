@@ -186,13 +186,18 @@ export default function ViewTicketPage() {
                            const isFutureDay = isAfter(dayStart, today);
                            const isPastDay = isBefore(dayStart, today);
                            
-                           const allUsedForDay = benefits.every(b => b.used && b.lastUsedDate === format(date, 'yyyy-MM-dd'));
-                           
                            const getStatusIcon = () => {
                                if (isFutureDay) return <Lock className="h-5 w-5 text-red-400" />;
                                if (isToday) return <Unlock className="h-5 w-5 text-green-400" />;
                                if (isPastDay) {
-                                   return allUsedForDay ? <CheckCheck className="h-5 w-5 text-green-400" /> : <Check className="h-5 w-5 text-blue-400" />;
+                                   const usedCount = benefits.filter(b => b.used && b.lastUsedDate === format(date, 'yyyy-MM-dd')).length;
+                                   if (usedCount === benefits.length) {
+                                       return <CheckCheck className="h-5 w-5 text-green-400" />; // All used
+                                   }
+                                   if (usedCount === 0) {
+                                       return <CheckCheck className="h-5 w-5 text-blue-400" />; // None used
+                                   }
+                                   return <Check className="h-5 w-5 text-blue-400" />; // Some used
                                }
                                return null;
                            }
@@ -216,7 +221,8 @@ export default function ViewTicketPage() {
                                         <ul className="space-y-2">
                                             {benefits.map(benefit => {
                                                 const hasBeenUsedOnThisDay = benefit.used && benefit.lastUsedDate === format(date, 'yyyy-MM-dd');
-                                                const endTime = benefit.endTime ? parse(benefit.endTime, 'HH:mm', now) : null;
+                                                const endTimeString = benefit.endTime || '';
+                                                const endTime = endTimeString ? parse(endTimeString, 'HH:mm', now) : null;
                                                 const hasTimeExpiredToday = endTime && isAfter(now, endTime) && isSameDay(date, now);
                                                 const isExpired = !hasBeenUsedOnThisDay && (isPastDay || hasTimeExpiredToday);
 
@@ -240,3 +246,4 @@ export default function ViewTicketPage() {
         </div>
     );
 }
+
