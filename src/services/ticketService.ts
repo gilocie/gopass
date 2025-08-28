@@ -22,20 +22,20 @@ const toDate = (timestamp: Timestamp | Date | undefined): Date | undefined => {
 
 
 // Create a new ticket
-export const addTicket = async (ticket: OmitIdTicket): Promise<{ id: string }> => {
+export const addTicket = async (ticket: OmitIdTicket): Promise<string> => {
     try {
         const ticketWithTimestamp = { ...ticket, createdAt: serverTimestamp() };
         const docRef = await addDoc(ticketsCollection, stripUndefined(ticketWithTimestamp));
         
         // Increment the ticketsIssued count on the event only if payment is not manual
-        if (ticket.paymentMethod !== 'manual') {
+        if (ticket.paymentMethod !== 'manual' && ticket.paymentStatus === 'completed') {
             const eventDocRef = doc(db, 'events', ticket.eventId);
             await updateDoc(eventDocRef, {
                 ticketsIssued: increment(1)
             });
         }
         
-        return { id: docRef.id };
+        return docRef.id;
 
     } catch (error) {
         console.error("Error adding ticket document: ", error);
@@ -128,10 +128,16 @@ export const updateTicket = async (ticketId: string, ticket: Partial<Omit<Ticket
 };
 
 // Attendee marks their manual payment as complete
-export const markTicketAsPaid = async (ticketId: string) => {
+export const markTicketAsPaid = async (ticketId: string, receiptUrl?: string) => {
     try {
         const ticketDoc = doc(db, 'tickets', ticketId);
-        await updateDoc(ticketDoc, { paymentStatus: 'awaiting-confirmation' });
+        const updateData: { paymentStatus: string; receiptUrl?: string } = {
+            paymentStatus: 'awaiting-confirmation',
+        };
+        if (receiptUrl) {
+            updateData.receiptUrl = receiptUrl;
+        }
+        await updateDoc(ticketDoc, updateData);
     } catch (error) {
         console.error("Error marking ticket as paid:", error);
         throw new Error("Could not update payment status.");

@@ -126,6 +126,7 @@ export interface Ticket {
     totalPaid?: number;
     paymentMethod?: 'manual' | 'online';
     paymentStatus?: 'pending' | 'awaiting-confirmation' | 'completed' | 'failed';
+    receiptUrl?: string;
 }
 
 export type OmitIdTicket = Omit<Ticket, 'id'>;

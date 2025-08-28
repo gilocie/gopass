@@ -39,9 +39,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download, Filter, BadgeCheck } from 'lucide-react';
+import { Loader2, Download, Filter, BadgeCheck, Link as LinkIcon } from 'lucide-react';
 import { format as formatDate } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 
 export default function WalletPage() {
   const { user } = useAuth();
@@ -238,14 +239,23 @@ export default function WalletPage() {
                                 </TableCell>
                                 <TableCell className="text-right">
                                      {ticket.paymentStatus === 'awaiting-confirmation' && (
-                                         <Button
-                                            size="sm"
-                                            onClick={() => handleConfirmPayment(ticket.id)}
-                                            disabled={isConfirming === ticket.id}
-                                        >
-                                            {isConfirming === ticket.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BadgeCheck className="mr-2 h-4 w-4" />}
-                                            {isConfirming === ticket.id ? 'Confirming...' : 'Confirm Payment'}
-                                        </Button>
+                                         <div className="flex items-center justify-end gap-2">
+                                             {ticket.receiptUrl && (
+                                                <Button size="icon" variant="outline" asChild>
+                                                    <Link href={ticket.receiptUrl} target="_blank" rel="noopener noreferrer">
+                                                        <LinkIcon className="h-4 w-4" />
+                                                    </Link>
+                                                </Button>
+                                             )}
+                                             <Button
+                                                size="sm"
+                                                onClick={() => handleConfirmPayment(ticket.id)}
+                                                disabled={isConfirming === ticket.id}
+                                            >
+                                                {isConfirming === ticket.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BadgeCheck className="mr-2 h-4 w-4" />}
+                                                {isConfirming === ticket.id ? 'Confirming...' : 'Confirm Payment'}
+                                            </Button>
+                                         </div>
                                     )}
                                 </TableCell>
                             </TableRow>

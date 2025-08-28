@@ -45,6 +45,7 @@ import Logo from '@/components/logo';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { BASE_CURRENCY_CODE } from '@/lib/currency';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 
 
 export default function DashboardPage() {
@@ -82,12 +83,14 @@ export default function DashboardPage() {
   });
 
   const { tickets: allTickets } = useRealtimeTickets(9999); 
+  
+  const completedTickets = allTickets.filter(ticket => ticket.paymentStatus === 'completed');
 
-  const totalRevenue = allTickets.reduce((acc, ticket) => {
+  const totalRevenue = completedTickets.reduce((acc, ticket) => {
     return acc + (ticket.totalPaid || 0);
   }, 0);
 
-  const totalTicketsSold = allTickets.length;
+  const totalTicketsSold = completedTickets.length;
   const currentPlan = userProfile?.planId ? PLANS[userProfile.planId] : PLANS['hobby'];
   const maxEvents = currentPlan.limits.maxEvents;
   const eventsCount = events.filter(e => e.status !== 'deleted').length;
@@ -496,7 +499,11 @@ export default function DashboardPage() {
                                         <p className="text-sm font-medium leading-none">{ticket.holderName}</p>
                                         <p className="text-xs text-muted-foreground">{ticket.holderEmail}</p>
                                     </div>
-                                    <div className="text-sm font-medium">{format(ticket.totalPaid || 0, (events.find(e => e.id === ticket.eventId)?.currency || BASE_CURRENCY_CODE) !== BASE_CURRENCY_CODE)}</div>
+                                    {ticket.paymentStatus === 'completed' ? (
+                                        <div className="text-sm font-medium">{format(ticket.totalPaid || 0, (events.find(e => e.id === ticket.eventId)?.currency || BASE_CURRENCY_CODE) !== BASE_CURRENCY_CODE)}</div>
+                                    ) : (
+                                        <Badge variant="secondary" className="bg-yellow-500 text-black">{ticket.paymentStatus === 'awaiting-confirmation' ? 'Confirming' : 'Pending'}</Badge>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -688,7 +695,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
-
-    

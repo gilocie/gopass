@@ -9,7 +9,7 @@ import type { Ticket, Event, Benefit, UserProfile, Organizer } from '@/lib/types
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer, CheckCircle2, XCircle, RefreshCw, AlertTriangle, WalletCards, Banknote, Smartphone } from 'lucide-react';
+import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer, CheckCircle2, XCircle, RefreshCw, AlertTriangle, WalletCards, Banknote, Smartphone, Upload } from 'lucide-react';
 import { TicketPreview } from '@/components/ticket-preview';
 import PinInput from '@/components/pin-input';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,8 @@ import { db } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { getOrganizerById } from '@/services/organizerService';
+import { uploadFileFromServer } from '@/services/storageService';
+import { Input } from '@/components/ui/input';
 
 const Countdown = ({ targetDate }: { targetDate: Date }) => {
     const calculateTimeLeft = React.useCallback(() => {
@@ -85,6 +87,7 @@ export default function ViewTicketPage() {
     const { toast } = useToast();
     const [now, setNow] = React.useState(new Date());
     const [isMarkingPaid, setIsMarkingPaid] = React.useState(false);
+    const [receiptFile, setReceiptFile] = React.useState<File | null>(null);
 
     React.useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 1000); // Update every second for countdown and status
@@ -143,7 +146,15 @@ export default function ViewTicketPage() {
         if (!ticket) return;
         setIsMarkingPaid(true);
         try {
-            await markTicketAsPaid(ticket.id);
+            let receiptUrl = '';
+            if (receiptFile) {
+                const formData = new FormData();
+                formData.append('file', receiptFile);
+                formData.append('path', `receipts/${ticket.id}/${receiptFile.name}`);
+                receiptUrl = await uploadFileFromServer(formData);
+            }
+
+            await markTicketAsPaid(ticket.id, receiptUrl);
             toast({ title: 'Success', description: 'The organizer has been notified and will confirm your payment shortly.' });
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
@@ -213,8 +224,8 @@ export default function ViewTicketPage() {
                     <Alert variant="destructive" className="mt-6">
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Payment Pending</AlertTitle>
-                        <AlertDescription>
-                            Your ticket is not yet active. Please complete the payment using the instructions below, then confirm.
+                        <AlertDescription className="space-y-3">
+                            <p>Your ticket is not yet active. Please complete the payment using the instructions below, then confirm.</p>
                              <Card className="my-3 text-foreground bg-background/50">
                                 <CardContent className="p-4 text-sm space-y-3">
                                    {wire?.accountNumber && (
@@ -236,6 +247,10 @@ export default function ViewTicketPage() {
                                    )}
                                 </CardContent>
                              </Card>
+                             <div className="grid gap-1.5">
+                                <label htmlFor="receipt" className="text-xs font-medium flex items-center gap-2"><Upload className="h-3 w-3" /> Upload Receipt (Optional)</label>
+                                <Input id="receipt" type="file" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} accept="image/*,application/pdf" className="text-xs file:text-xs" />
+                             </div>
                              <Button onClick={handleMarkAsPaid} disabled={isMarkingPaid} className="w-full mt-2">
                                 {isMarkingPaid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <WalletCards className="mr-2 h-4 w-4" />}
                                 {isMarkingPaid ? 'Submitting...' : 'I Have Paid'}
@@ -304,7 +319,8 @@ export default function ViewTicketPage() {
                                 if (isPastDay) {
                                     const usedCount = benefitsForDay.filter(b => b.used && b.lastUsedDate === format(date, 'yyyy-MM-dd')).length;
                                     
-                                    if (usedCount === benefitsForDay.length && benefitsForDay.length > 0) {
+                                    if (benefitsForDay.length === 0) return <CheckCheck className="h-5 w-5 text-blue-400" />;
+                                    if (usedCount === benefitsForDay.length) {
                                         return <CheckCheck className="h-5 w-5 text-green-400" />;
                                     }
                                     if (usedCount > 0 && usedCount < benefitsForDay.length) {
