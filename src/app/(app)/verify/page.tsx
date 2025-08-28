@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { QrCode, ScanLine, UserCheck, XCircle, RefreshCw, VideoOff, X, Video, CheckCircle2, AlertTriangle, Timer, Clock } from "lucide-react";
+import { QrCode, ScanLine, UserCheck, XCircle, RefreshCw, VideoOff, X, Video, CheckCircle2, AlertTriangle, Timer, Clock, CheckCheck } from "lucide-react";
 import PinInput from '@/components/pin-input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -80,6 +80,9 @@ export default function VerifyPage() {
     const [event, setEvent] = React.useState<Event | null>(null);
     const [hasCameraPermission, setHasCameraPermission] = React.useState<boolean | null>(null);
     const [benefitToMark, setBenefitToMark] = React.useState<{ index: number; name: string } | null>(null);
+    const [showMarkAllDialog, setShowMarkAllDialog] = React.useState(false);
+    const [markAllPin, setMarkAllPin] = React.useState('');
+    const [markAllPinError, setMarkAllPinError] = React.useState('');
 
     const videoRef = React.useRef<HTMLVideoElement>(null);
     const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -268,6 +271,38 @@ export default function VerifyPage() {
             setBenefitToMark(null);
         }
     }
+
+    const handleMarkAllConfirm = async () => {
+        if (!scannedTicket || !event || markAllPin !== scannedTicket.pin) {
+            setMarkAllPinError('Invalid PIN. Please try again.');
+            return;
+        }
+        setMarkAllPinError('');
+
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const currentDayOfEvent = getDayOfEvent(event);
+
+        const updatedBenefits = scannedTicket.benefits.map(benefit => {
+            if (benefit.days.includes(currentDayOfEvent) && !benefit.used) {
+                return { ...benefit, used: true, lastUsedDate: todayStr };
+            }
+            return benefit;
+        });
+
+        const updatedTicket = { ...scannedTicket, benefits: updatedBenefits };
+        setScannedTicket(updatedTicket);
+
+        try {
+            await updateTicket(scannedTicket.id, { benefits: updatedBenefits });
+            toast({ title: 'Success', description: `All of today's benefits have been marked as used.` });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not update benefits.' });
+            setScannedTicket(scannedTicket); // Revert
+        } finally {
+            setShowMarkAllDialog(false);
+            setMarkAllPin('');
+        }
+    };
     
     const handleTicketStatusChange = async () => {
         if (!scannedTicket) return;
@@ -299,7 +334,7 @@ export default function VerifyPage() {
                     <CardHeader className="text-center relative">
                         <CardTitle>Ticket Verification</CardTitle>
                         <CardDescription>Use the scanner to verify attendee tickets and manage benefits.</CardDescription>
-                         <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => router.back()}>
+                         <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => router.push('/dashboard')}>
                             <X className="h-5 w-5" />
                             <span className="sr-only">Close</span>
                         </Button>
@@ -375,13 +410,16 @@ export default function VerifyPage() {
                             <div>
                                 <h4 className="font-semibold mb-2">Benefits (Day {getDayOfEvent(event)})</h4>
                                 <div className="space-y-2">
-                                    {scannedTicket.benefits.map((benefit, index) => {
+                                    {scannedTicket.benefits
+                                        .filter(benefit => benefit.days.includes(getDayOfEvent(event)))
+                                        .map((benefit) => {
+                                        const benefitIndex = scannedTicket.benefits.findIndex(b => b.id === benefit.id);
                                         const now = new Date();
                                         const today = startOfToday();
                                         const eventStart = new Date(event.startDate);
-                                        const currentEventDay = isBefore(today, eventStart) ? eventStart : today;
+                                        const currentEventDayDate = isBefore(today, eventStart) ? eventStart : today;
 
-                                        if (!isSameDay(currentEventDay, today)) return null;
+                                        if (!isSameDay(currentEventDayDate, today)) return null;
 
                                         const todayStr = format(today, 'yyyy-MM-dd');
                                         const isUsedToday = benefit.used && benefit.lastUsedDate === todayStr;
@@ -392,19 +430,19 @@ export default function VerifyPage() {
                                         const isExpired = !isUsedToday && endTime && isAfter(now, endTime);
 
                                         return (
-                                            <div key={index} className="flex items-center space-x-2 p-3 bg-secondary rounded-md">
+                                            <div key={benefit.id} className="flex items-center space-x-2 p-3 bg-secondary rounded-md">
                                                 <Checkbox 
-                                                    id={`benefit-${index}`} 
+                                                    id={`benefit-${benefit.id}`} 
                                                     checked={isUsedToday}
                                                     onCheckedChange={(checked) => {
                                                         if (checked && !isUsedToday) {
-                                                            setBenefitToMark({ index, name: benefit.name });
+                                                            setBenefitToMark({ index: benefitIndex, name: benefit.name });
                                                         }
                                                     }}
                                                     disabled={isUsedToday || isExpired}
                                                 />
                                                 <div className="flex-1">
-                                                    <Label htmlFor={`benefit-${index}`} className={cn((isUsedToday || isExpired) && 'line-through text-muted-foreground', 'cursor-pointer')}>
+                                                    <Label htmlFor={`benefit-${benefit.id}`} className={cn((isUsedToday || isExpired) && 'line-through text-muted-foreground', 'cursor-pointer')}>
                                                         {benefit.name}
                                                     </Label>
                                                     <BenefitStatus benefit={benefit} event={event} />
@@ -420,6 +458,9 @@ export default function VerifyPage() {
                                  <div className="flex flex-col sm:flex-row gap-2">
                                      <Button variant="destructive" onClick={handleTicketStatusChange}>
                                         {scannedTicket.status === 'active' ? 'Cancel Ticket' : 'Reactivate Ticket'}
+                                    </Button>
+                                    <Button variant="outline" onClick={() => setShowMarkAllDialog(true)}>
+                                        <CheckCheck className="mr-2 h-4 w-4" /> Mark All for Today
                                     </Button>
                                     <Button onClick={handleReset} className="w-full sm:w-auto">Done</Button>
                                  </div>
@@ -444,6 +485,25 @@ export default function VerifyPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            
+            <AlertDialog open={showMarkAllDialog} onOpenChange={setShowMarkAllDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm All Benefits</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           This will mark all available benefits for today as used. Please have the ticket holder confirm this action with their PIN.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="flex flex-col items-center gap-4 py-4">
+                        <PinInput length={6} onComplete={setMarkAllPin} />
+                        {markAllPinError && <p className="text-sm text-destructive">{markAllPinError}</p>}
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => { setMarkAllPin(''); setMarkAllPinError(''); }}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleMarkAllConfirm}>Authorize & Confirm</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
              <style jsx>{`
                 @keyframes scan {
@@ -464,4 +524,3 @@ export default function VerifyPage() {
         </div>
     );
 }
-
