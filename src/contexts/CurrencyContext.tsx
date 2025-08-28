@@ -65,17 +65,6 @@ export const CurrencyProvider = ({ children }: { children: React.ReactNode }) =>
   }
 
   const format = (amount: number, isLocal: boolean = false) => {
-    // If isLocal is true, it means the amount is already in the local currency.
-    // Otherwise, the amount is in the base currency (USD) and needs conversion.
-    const currencyToUse = isLocal ? country.currency : currencies[BASE_CURRENCY_CODE];
-    const amountToFormat = isLocal ? amount : convertCurrency(amount, country.currency.code, exchangeRates);
-    
-    // This logic was flawed. We need to decide which currency to display based on the context.
-    // The `isLocal` flag is the best indicator. If true, use the user's local currency.
-    // If false, it means we are displaying a base value, so use the base currency format.
-    // However, the intent of the app is to show everything in local currency.
-    // Let's adjust to always convert and show local currency unless specified otherwise.
-    
     const finalAmount = isLocal ? amount : convertCurrency(amount, country.currency.code, exchangeRates);
     return formatCurrency(finalAmount, country.currency);
   };
