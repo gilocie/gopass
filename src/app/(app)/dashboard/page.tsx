@@ -12,13 +12,13 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X, Wallet } from 'lucide-react';
+import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X, Wallet, BadgeCheck, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestoreEvents } from '@/hooks/use-firestore-events';
 import { EventCard } from '@/components/event-card';
 import { deleteEvent, updateEvent } from '@/services/eventService';
 import { useToast } from '@/hooks/use-toast';
-import { useRealtimeTickets, deleteTicket } from '@/services/ticketService';
+import { useRealtimeTickets, deleteTicket, confirmTicketPayment } from '@/services/ticketService';
 import type { Ticket as TicketType, Event, Organizer, UserProfile } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter as DialogFooterComponent } from '@/components/ui/dialog';
 import {
@@ -62,6 +62,7 @@ export default function DashboardPage() {
   const [isUpgradeInvoiceOpen, setIsUpgradeInvoiceOpen] = React.useState(false);
   const [filter, setFilter] = React.useState('');
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
+  const [isConfirming, setIsConfirming] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (user) {
@@ -144,6 +145,19 @@ export default function DashboardPage() {
         setSelectedTicket(null);
     } catch (error) {
         toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the transaction." });
+    }
+  };
+
+  const handleConfirmPayment = async (ticketId: string) => {
+    setIsConfirming(ticketId);
+    try {
+        await confirmTicketPayment(ticketId);
+        toast({ title: 'Payment Confirmed', description: 'The ticket has been activated.' });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Confirmation Failed', description: error.message });
+    } finally {
+        setIsConfirming(null);
+        setIsInvoiceOpen(false);
     }
   };
   
@@ -317,6 +331,21 @@ export default function DashboardPage() {
 
   if (eventsLoading) {
     return <div>Loading dashboard...</div>;
+  }
+
+  const getStatusBadge = (ticket: TicketType) => {
+    switch(ticket.paymentStatus) {
+        case 'pending':
+            return <Badge variant="outline">Pending</Badge>;
+        case 'awaiting-confirmation':
+            return <Badge variant="secondary" className="bg-yellow-500 text-black">Confirm</Badge>;
+        case 'completed':
+            return <div className="text-sm font-medium">{format(ticket.totalPaid || 0, (events.find(e => e.id === ticket.eventId)?.currency || BASE_CURRENCY_CODE) !== BASE_CURRENCY_CODE)}</div>;
+        case 'failed':
+            return <Badge variant="destructive">Failed</Badge>;
+        default:
+            return <Badge variant="secondary">N/A</Badge>;
+    }
   }
 
   return (
@@ -499,11 +528,7 @@ export default function DashboardPage() {
                                         <p className="text-sm font-medium leading-none">{ticket.holderName}</p>
                                         <p className="text-xs text-muted-foreground">{ticket.holderEmail}</p>
                                     </div>
-                                    {ticket.paymentStatus === 'completed' ? (
-                                        <div className="text-sm font-medium">{format(ticket.totalPaid || 0, (events.find(e => e.id === ticket.eventId)?.currency || BASE_CURRENCY_CODE) !== BASE_CURRENCY_CODE)}</div>
-                                    ) : (
-                                        <Badge variant="secondary" className="bg-yellow-500 text-black">{ticket.paymentStatus === 'awaiting-confirmation' ? 'Confirming' : 'Pending'}</Badge>
-                                    )}
+                                    {getStatusBadge(ticket)}
                                 </div>
                             ))}
                         </div>
@@ -532,19 +557,22 @@ export default function DashboardPage() {
                  {selectedTicket && selectedEvent && (
                     <>
                         <div className="p-6 bg-card rounded-lg border shadow-lg max-w-md w-full" id="invoice-print-area">
-                             <div className="flex items-center gap-4">
-                                <Avatar className="h-16 w-16">
-                                    <AvatarImage src={selectedTicket.holderPhotoUrl} alt={selectedTicket.holderName} />
-                                    <AvatarFallback>{selectedTicket.holderName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <h3 className="font-semibold text-lg">Billed To</h3>
-                                    <div className="text-sm text-muted-foreground leading-snug">
-                                        {selectedTicket.holderName}<br />
-                                        {selectedTicket.holderEmail}<br />
-                                        {selectedTicket.holderPhone}
+                             <div className="flex justify-between items-start">
+                                <div className="flex items-center gap-4">
+                                    <Avatar className="h-16 w-16">
+                                        <AvatarImage src={selectedTicket.holderPhotoUrl} alt={selectedTicket.holderName} />
+                                        <AvatarFallback>{selectedTicket.holderName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <h3 className="font-semibold text-lg">Billed To</h3>
+                                        <div className="text-sm text-muted-foreground leading-snug">
+                                            {selectedTicket.holderName}<br />
+                                            {selectedTicket.holderEmail}<br />
+                                            {selectedTicket.holderPhone}
+                                        </div>
                                     </div>
                                 </div>
+                                {getStatusBadge(selectedTicket)}
                             </div>
                             <Separator className="my-4" />
                             <div className="space-y-2">
@@ -578,6 +606,25 @@ export default function DashboardPage() {
                                     <span>${format(selectedTicket.totalPaid || 0, selectedEvent.currency !== BASE_CURRENCY_CODE)}</span>
                                 </div>
                             </div>
+                             {selectedTicket.paymentStatus === 'awaiting-confirmation' && (
+                                <div className="mt-4 pt-4 border-t space-y-3">
+                                    {selectedTicket.receiptUrl && (
+                                        <Button variant="outline" className="w-full" asChild>
+                                            <a href={selectedTicket.receiptUrl} target="_blank" rel="noopener noreferrer">
+                                                <LinkIcon className="mr-2 h-4 w-4" /> View Receipt
+                                            </a>
+                                        </Button>
+                                    )}
+                                    <Button
+                                        className="w-full"
+                                        onClick={() => handleConfirmPayment(selectedTicket.id)}
+                                        disabled={isConfirming === selectedTicket.id}
+                                    >
+                                        {isConfirming === selectedTicket.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BadgeCheck className="mr-2 h-4 w-4" />}
+                                        {isConfirming === selectedTicket.id ? 'Confirming...' : 'Confirm Payment'}
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                         
                         <TooltipProvider>
