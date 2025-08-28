@@ -28,7 +28,7 @@ export const addTicket = async (ticket: OmitIdTicket): Promise<string> => {
         const ticketWithTimestamp = { ...ticket, createdAt: serverTimestamp() };
         const docRef = await addDoc(ticketsCollection, stripUndefined(ticketWithTimestamp));
         
-        // Increment the ticketsIssued count on the event only if payment is confirmed
+        // Increment the ticketsIssued count on the event if payment is already completed (e.g., organizer-created tickets)
         if (ticket.paymentStatus === 'completed') {
             const eventDocRef = doc(db, 'events', ticket.eventId);
             await updateDoc(eventDocRef, {
