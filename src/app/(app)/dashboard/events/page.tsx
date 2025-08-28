@@ -62,7 +62,7 @@ export default function EventsPage() {
     const canCreateEvent = eventsCount < currentPlan.limits.maxEvents;
 
 
-    const renderEvents = (filter: 'upcoming' | 'past' | 'draft' | 'all') => {
+    const renderEvents = (filter: 'upcoming' | 'ongoing' | 'past' | 'draft' | 'all') => {
         if (loading) {
             return <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"><p>Loading events...</p></div>;
         }
@@ -73,19 +73,25 @@ export default function EventsPage() {
         const filteredEvents = events.filter(event => {
             // Exclude deleted events from all primary views
             if (event.status === 'deleted') return false;
-
+            
+            const eventStartDate = new Date(event.startDate);
+            eventStartDate.setHours(0, 0, 0, 0);
             const eventEndDate = event.endDate ? new Date(event.endDate) : new Date(event.startDate);
             eventEndDate.setHours(23, 59, 59, 999); // Event is past at the end of its last day
+            
+            const isOngoing = eventStartDate <= today && today <= eventEndDate;
 
             switch (filter) {
                 case 'all':
                     return true;
                 case 'draft':
                     return event.status === 'draft';
+                case 'ongoing':
+                    return event.status !== 'draft' && isOngoing;
                 case 'past':
                     return event.status !== 'draft' && eventEndDate < today;
                 case 'upcoming':
-                    return event.status !== 'draft' && eventEndDate >= today;
+                    return event.status !== 'draft' && eventStartDate > today;
                 default:
                     return true;
             }
@@ -187,12 +193,14 @@ export default function EventsPage() {
             <TabsList>
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                <TabsTrigger value="ongoing">Ongoing</TabsTrigger>
                 <TabsTrigger value="past">Past</TabsTrigger>
                 <TabsTrigger value="draft">Draft</TabsTrigger>
                 <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
             <TabsContent value="all">{renderEvents('all')}</TabsContent>
             <TabsContent value="upcoming">{renderEvents('upcoming')}</TabsContent>
+            <TabsContent value="ongoing">{renderEvents('ongoing')}</TabsContent>
             <TabsContent value="past">{renderEvents('past')}</TabsContent>
             <TabsContent value="draft">{renderEvents('draft')}</TabsContent>
             <TabsContent value="history">

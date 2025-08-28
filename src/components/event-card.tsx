@@ -40,9 +40,13 @@ export const EventCard = ({ event, onDelete, maxTickets }: { event: Event, onDel
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const eventStartDate = new Date(event.startDate);
+    eventStartDate.setHours(0,0,0,0);
     const eventEndDate = event.endDate ? new Date(event.endDate) : new Date(event.startDate);
     eventEndDate.setHours(23, 59, 59, 999);
+
     const isPast = event.status !== 'draft' && eventEndDate < today;
+    const isOngoing = event.status !== 'draft' && eventStartDate <= today && today <= eventEndDate;
     const isDeleted = event.status === 'deleted';
 
     const handleTogglePublish = async () => {
@@ -84,6 +88,7 @@ export const EventCard = ({ event, onDelete, maxTickets }: { event: Event, onDel
     const getStatusBadge = () => {
         if (isDeleted) return <Badge variant="destructive">Archived</Badge>;
         if (isPast) return <Badge variant="secondary">Past</Badge>;
+        if (isOngoing) return <Badge className="bg-green-600 text-white">Ongoing</Badge>;
         if (event.status === 'upcoming') return <Badge variant="default">Upcoming</Badge>;
         return <Badge variant="outline">Draft</Badge>;
     }

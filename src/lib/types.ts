@@ -72,7 +72,7 @@ export interface Event {
     isPaid: boolean;
     price: number;
     currency: string; 
-    status: 'upcoming' | 'past' | 'draft' | 'deleted';
+    status: 'upcoming' | 'past' | 'draft' | 'deleted' | 'ongoing';
     deletedAt?: Timestamp;
     ticketsIssued: number;
     ticketsTotal: number;

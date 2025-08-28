@@ -40,12 +40,17 @@ export default function SelectEventForScanPage() {
         if (!user || userOrganizations.length === 0) return [];
         
         const orgIds = userOrganizations.map(org => org.id);
+        const today = new Date();
 
-        return events.filter(event => 
-            orgIds.includes(event.organizerId || '') &&
-            event.status !== 'past' && 
-            event.status !== 'deleted'
-        );
+        return events.filter(event => {
+            if (!orgIds.includes(event.organizerId || '')) return false;
+            if (event.status === 'deleted' || event.status === 'draft') return false;
+
+            const eventEndDate = event.endDate ? new Date(event.endDate) : new Date(event.startDate);
+            eventEndDate.setHours(23, 59, 59, 999);
+
+            return today <= eventEndDate; // Event is not past
+        });
     }, [events, user, userOrganizations]);
 
     React.useEffect(() => {
@@ -83,7 +88,7 @@ export default function SelectEventForScanPage() {
                 <Card className="w-full max-w-md text-center">
                     <CardHeader>
                         <CardTitle>No Active Events Found</CardTitle>
-                        <CardDescription>You need to have at least one upcoming event to scan tickets.</CardDescription>
+                        <CardDescription>You need to have at least one upcoming or ongoing event to scan tickets.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
