@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -141,12 +142,14 @@ export default function BuyTicketPage() {
         try {
             const latestEvent = await getEventById(event.id);
             if (!latestEvent) throw new Error('Event not found while purchasing');
+            
+            const organizerId = latestEvent.organizerId || 'default'; // Using a fallback, adjust as necessary
+            const latestOrganizer = await getUserProfile(organizerId);
 
-            const latestOrganizer = latestEvent.organizerId ? await getUserProfile(latestEvent.organizerId) : null;
             const latestPlan = latestOrganizer?.planId ? PLANS[latestOrganizer.planId] : PLANS['hobby'];
             const latestMax = latestPlan.limits.maxTicketsPerEvent;
 
-            if ((latestEvent.ticketsIssued ?? 0) >= latestMax) {
+            if (isFinite(latestMax) && (latestEvent.ticketsIssued ?? 0) >= latestMax) {
                 toast({ variant: 'destructive', title: 'Event Full', description: 'No more tickets available.' });
                 setIsPurchasing(false);
                 return;
@@ -189,6 +192,9 @@ export default function BuyTicketPage() {
             };
             
             const createdTicket = await addTicket(newTicket);
+            if (!createdTicket || !createdTicket.id) {
+                throw new Error("addTicket returned an invalid ID");
+            }
 
             sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId: createdTicket.id, pin: newPin, eventId: event.id }));
             router.push(`/events/${event.id}/success`);
@@ -202,7 +208,7 @@ export default function BuyTicketPage() {
 
     const currentPlan = organizerProfile?.planId ? PLANS[organizerProfile.planId] : PLANS['hobby'];
     const maxTickets = currentPlan.limits.maxTicketsPerEvent;
-    const canPurchase = event ? ((event.ticketsIssued ?? 0) < maxTickets) : false;
+    const canPurchase = event ? (isFinite(maxTickets) ? ((event.ticketsIssued ?? 0) < maxTickets) : true) : false;
     
     const hasWire = !!organizer?.paymentDetails?.wireTransfer?.accountNumber;
     const hasMomo = !!organizer?.paymentDetails?.mobileMoney?.phoneNumber;
