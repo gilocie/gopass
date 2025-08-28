@@ -21,7 +21,6 @@ import { db } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { getOrganizerById } from '@/services/organizerService';
-import { uploadFileFromServer } from '@/services/storageService';
 import { Input } from '@/components/ui/input';
 
 const Countdown = ({ targetDate }: { targetDate: Date }) => {
@@ -87,7 +86,7 @@ export default function ViewTicketPage() {
     const { toast } = useToast();
     const [now, setNow] = React.useState(new Date());
     const [isMarkingPaid, setIsMarkingPaid] = React.useState(false);
-    const [receiptFile, setReceiptFile] = React.useState<File | null>(null);
+    const [receiptDataUrl, setReceiptDataUrl] = React.useState<string | null>(null);
 
     React.useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 1000); // Update every second for countdown and status
@@ -142,19 +141,24 @@ export default function ViewTicketPage() {
         }
     };
 
+    const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setReceiptDataUrl(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            setReceiptDataUrl(null);
+        }
+    };
+
     const handleMarkAsPaid = async () => {
         if (!ticket) return;
         setIsMarkingPaid(true);
         try {
-            let receiptUrl = '';
-            if (receiptFile) {
-                const formData = new FormData();
-                formData.append('file', receiptFile);
-                formData.append('path', `receipts/${ticket.id}/${receiptFile.name}`);
-                receiptUrl = await uploadFileFromServer(formData);
-            }
-
-            await markTicketAsPaid(ticket.id, receiptUrl);
+            await markTicketAsPaid(ticket.id, receiptDataUrl || undefined);
             toast({ title: 'Success', description: 'The organizer has been notified and will confirm your payment shortly.' });
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
@@ -221,7 +225,7 @@ export default function ViewTicketPage() {
         switch(ticket.paymentStatus) {
             case 'pending':
                 return (
-                    <Alert variant="destructive" className="mt-6">
+                    <Alert variant="destructive" className="mt-6 bg-yellow-600/10 border-yellow-500/50 text-yellow-200 [&>svg]:text-yellow-400">
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Payment Pending</AlertTitle>
                         <AlertDescription className="space-y-3">
@@ -249,7 +253,7 @@ export default function ViewTicketPage() {
                              </Card>
                              <div className="grid gap-1.5">
                                 <label htmlFor="receipt" className="text-xs font-medium flex items-center gap-2"><Upload className="h-3 w-3" /> Upload Receipt (Optional)</label>
-                                <Input id="receipt" type="file" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} accept="image/*,application/pdf" className="text-xs file:text-xs" />
+                                <Input id="receipt" type="file" onChange={handleReceiptFileChange} accept="image/*,application/pdf" className="text-xs file:text-xs" />
                              </div>
                              <Button onClick={handleMarkAsPaid} disabled={isMarkingPaid} className="w-full mt-2">
                                 {isMarkingPaid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <WalletCards className="mr-2 h-4 w-4" />}
@@ -260,7 +264,7 @@ export default function ViewTicketPage() {
                 );
             case 'awaiting-confirmation':
                  return (
-                    <Alert className="mt-6">
+                    <Alert className="mt-6 bg-yellow-600/10 border-yellow-500/50 text-yellow-200 [&>svg]:text-yellow-400">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <AlertTitle>Awaiting Confirmation</AlertTitle>
                         <AlertDescription>
@@ -376,3 +380,5 @@ export default function ViewTicketPage() {
         </div>
     );
 }
+
+    

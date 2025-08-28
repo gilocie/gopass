@@ -416,10 +416,12 @@ export default function DesignerPage() {
                     backgroundImageOpacity: backgroundOpacity / 100,
                     status: 'active',
                     totalPaid,
+                    paymentMethod: 'manual',
+                    paymentStatus: 'completed' // Auto-approved as it's created by an organizer
                 };
-                const createdTicket = await addTicket(stripUndefined(newTicket));
+                const createdTicketId = await addTicket(stripUndefined(newTicket));
                 if (user && draftId) await deleteDraft(user.uid, draftId);
-                setNewTicketId(createdTicket.id);
+                setNewTicketId(createdTicketId);
                 setIsCreationComplete(true);
                 setIsCopied(false);
                 setFullName('');
@@ -1073,3 +1075,5 @@ export default function DesignerPage() {
         </div>
     );
 }
+
+    
