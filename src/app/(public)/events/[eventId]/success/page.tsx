@@ -128,95 +128,13 @@ export default function PurchaseSuccessPage() {
         }
     };
     
-    const handlePrintInvoice = () => {
-      if (!ticket || !event) return;
-      
-      const createdAtDate = ticket.createdAt instanceof Date ? ticket.createdAt : (ticket.createdAt ? new Date((ticket.createdAt as any).seconds * 1000) : null);
-      
-      const benefitsHtml = ticket.benefits.map(benefit => {
-          const eventBenefit = event.benefits?.find(b => b.id === benefit.id);
-          return `
-              <div class="summary-item">
-                  <span>${benefit.name}</span>
-                  <span>${format(eventBenefit?.price || 0, event.currency !== BASE_CURRENCY_CODE)}</span>
-              </div>
-          `;
-      }).join('');
-
-      const PrintableInvoice = () => (
-        React.createElement('html', null,
-            React.createElement('head', null,
-                React.createElement('title', null, 'Print Invoice'),
-                React.createElement('style', null, `
-                    body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #333; font-size: 14px; }
-                    .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, 0.15); }
-                    h2, h3 { margin-top: 0; }
-                    .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; border-bottom: 2px solid #eee; padding-bottom: 1rem; }
-                    .invoice-header-info { text-align: right; }
-                    .organizer-logo { max-width: 120px; max-height: 60px; margin-bottom: 0.5rem; }
-                    .organizer-name { font-size: 1.5em; font-weight: bold; }
-                    .details-section { margin-bottom: 20px; }
-                    .details-section p { margin: 5px 0; }
-                    .summary-section { margin-top: 30px; }
-                    .summary-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-                    .summary-item:last-child { border-bottom: none; }
-                    .total { display: flex; justify-content: space-between; font-weight: bold; font-size: 1.5em; border-top: 2px solid #333; padding-top: 10px; margin-top: 20px; }
-                    .font-mono { font-family: 'Courier New', Courier, monospace; }
-                `)
-            ),
-            React.createElement('body', null,
-                React.createElement('div', { className: 'invoice-box' },
-                    React.createElement('div', { className: 'invoice-header' },
-                        React.createElement('div', null,
-                            organizer?.logoUrl && React.createElement('img', { src: organizer.logoUrl, alt: organizer.name, className: 'organizer-logo' }),
-                            React.createElement('div', { className: 'organizer-name' }, organizer?.name || 'GoPass')
-                        ),
-                        React.createElement('div', { className: 'invoice-header-info' },
-                            React.createElement('h2', null, 'Invoice'),
-                            React.createElement('p', null, React.createElement('strong', null, 'Invoice #:'), React.createElement('span', { className: 'font-mono' }, ticket.id)),
-                            createdAtDate && React.createElement('p', null, React.createElement('strong', null, 'Date:'), ` ${createdAtDate.toLocaleDateString()}`)
-                        )
-                    ),
-                    React.createElement('div', { className: 'details-section' },
-                        React.createElement('h3', null, 'Billed To'),
-                        React.createElement('p', null, React.createElement('strong', null, 'Name:'), ` ${ticket.holderName}`),
-                        React.createElement('p', null, React.createElement('strong', null, 'Email:'), ` ${ticket.holderEmail}`),
-                        ticket.holderPhone && React.createElement('p', null, React.createElement('strong', null, 'Phone:'), ` ${ticket.holderPhone}`)
-                    ),
-                    React.createElement('div', { className: 'summary-section' },
-                        React.createElement('h3', null, `Order Summary for "${event.name}"`),
-                        React.createElement('div', { dangerouslySetInnerHTML: { __html: benefitsHtml } }),
-                        React.createElement('div', { className: 'total' },
-                            React.createElement('span', null, 'Total Paid:'),
-                            React.createElement('span', null, format(ticket.totalPaid || 0, event.currency !== BASE_CURRENCY_CODE))
-                        )
-                    )
-                )
-            )
-        )
-      );
-      
-      const printContent = `<!DOCTYPE html>${renderToStaticMarkup(React.createElement(PrintableInvoice))}`;
-      const newWindow = window.open('', '_blank', 'height=600,width=800');
-      if (newWindow) {
-        newWindow.document.open();
-        newWindow.document.write(printContent);
-        newWindow.document.close();
-        newWindow.focus();
-        setTimeout(() => {
-            newWindow.print();
-            newWindow.close();
-        }, 250);
-      }
-  };
-
-
     if (!purchaseDetails) {
         return <div className="flex min-h-screen items-center justify-center">Loading your ticket details...</div>
     }
 
     const ticketUrl = `/ticket/${purchaseDetails.ticketId}?eventId=${eventId}`;
     const createdAtDate = ticket?.createdAt instanceof Date ? ticket.createdAt : (ticket?.createdAt ? new Date((ticket.createdAt as any).seconds * 1000) : null);
+    const isManualPayment = ticket?.paymentMethod === 'manual' && ticket?.paymentStatus !== 'completed';
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 flex items-center justify-center">
@@ -227,7 +145,10 @@ export default function PurchaseSuccessPage() {
                     </div>
                     <CardTitle className="mt-4 text-2xl">Purchase Successful!</CardTitle>
                     <CardDescription>
-                        Your ticket has been created. Please save the following details in a secure place.
+                        {isManualPayment
+                            ? "Your ticket has been reserved. Please complete the payment to activate it."
+                            : "Your ticket has been created. Please save the following details in a secure place."
+                        }
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -251,7 +172,7 @@ export default function PurchaseSuccessPage() {
                         </Button>
                          <Button onClick={handleDownloadPdf} disabled={!ticket || !event || isDownloading} className="w-full">
                             {isDownloading ? <Loader2 className="mr-2 animate-spin"/> : <FileDown className="mr-2" />}
-                            {isDownloading ? 'Downloading...' : 'Download PDF'}
+                            {isDownloading ? 'Downloading...' : 'Download Invoice'}
                         </Button>
                     </div>
                      <p className="text-xs text-muted-foreground">
@@ -272,6 +193,7 @@ export default function PurchaseSuccessPage() {
                                 <h2 className="text-3xl font-bold uppercase">Invoice</h2>
                                 <p><strong>Invoice #:</strong> <span style={{fontFamily: 'monospace'}}>{ticket.id}</span></p>
                                 {createdAtDate && <p><strong>Date:</strong> {createdAtDate.toLocaleDateString()}</p>}
+                                <p><strong>Status:</strong> <span className="font-bold">{ticket.paymentStatus === 'completed' ? 'PAID' : 'UNPAID'}</span></p>
                             </div>
                         </div>
                         <div className="mb-8">
@@ -295,7 +217,7 @@ export default function PurchaseSuccessPage() {
                                 })}
                             </div>
                             <div className="flex justify-between font-bold text-2xl border-t-2 border-black pt-4 mt-4">
-                                <span>Total Paid:</span>
+                                <span>Total Due:</span>
                                 <span>{formatEventPrice({ price: ticket.totalPaid || 0, currency: event.currency })}</span>
                             </div>
                         </div>

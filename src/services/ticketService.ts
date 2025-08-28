@@ -22,7 +22,7 @@ const toDate = (timestamp: Timestamp | Date | undefined): Date | undefined => {
 
 
 // Create a new ticket
-export const addTicket = async (ticket: OmitIdTicket): Promise<string> => {
+export const addTicket = async (ticket: OmitIdTicket): Promise<{ id: string }> => {
     try {
         const ticketWithTimestamp = { ...ticket, createdAt: serverTimestamp() };
         const docRef = await addDoc(ticketsCollection, stripUndefined(ticketWithTimestamp));
@@ -35,7 +35,7 @@ export const addTicket = async (ticket: OmitIdTicket): Promise<string> => {
             });
         }
         
-        return docRef.id;
+        return { id: docRef.id };
 
     } catch (error) {
         console.error("Error adding ticket document: ", error);

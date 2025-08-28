@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getEventById } from '@/services/eventService';
 import { addTicket } from '@/services/ticketService';
-import type { Event, OmitIdTicket, Benefit, EventBenefit, UserProfile } from '@/lib/types';
+import type { Event, OmitIdTicket, Benefit, EventBenefit, UserProfile, Organizer } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,13 +14,17 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, Smartphone } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
 import { formatEventPrice, currencies } from '@/lib/currency';
 import { getUserProfile } from '@/services/userService';
 import { PLANS } from '@/lib/plans';
+import { getOrganizerById } from '@/services/organizerService';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
+
 
 export default function BuyTicketPage() {
     const params = useParams();
@@ -29,6 +33,7 @@ export default function BuyTicketPage() {
     const { toast } = useToast();
 
     const [event, setEvent] = React.useState<Event | null>(null);
+    const [organizer, setOrganizer] = React.useState<Organizer | null>(null);
     const [organizerProfile, setOrganizerProfile] = React.useState<UserProfile | null>(null);
     const [loading, setLoading] = React.useState(true);
     const [isPurchasing, setIsPurchasing] = React.useState(false);
@@ -39,6 +44,8 @@ export default function BuyTicketPage() {
     const [phone, setPhone] = React.useState('');
     const [photoUrl, setPhotoUrl] = React.useState('');
     const [selectedBenefits, setSelectedBenefits] = React.useState<string[]>([]);
+    const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('manual');
+    const [manualPaymentType, setManualPaymentType] = React.useState('');
 
     // Cropper State
     const [imageToCrop, setImageToCrop] = React.useState<string | null>(null);
@@ -53,8 +60,12 @@ export default function BuyTicketPage() {
                 if (fetchedEvent) {
                     setEvent(fetchedEvent);
                      if (fetchedEvent.organizerId) {
-                        const profile = await getUserProfile(fetchedEvent.organizerId);
+                        const [profile, orgData] = await Promise.all([
+                            getUserProfile(fetchedEvent.organizerId),
+                            getOrganizerById(fetchedEvent.organizerId),
+                        ]);
                         setOrganizerProfile(profile);
+                        setOrganizer(orgData);
                     }
                     const trainingBenefit = fetchedEvent.benefits?.find(b => b.id === 'benefit_training');
                     if (trainingBenefit) {
@@ -115,6 +126,11 @@ export default function BuyTicketPage() {
             return;
         }
         
+        if (paymentMethod === 'manual' && !manualPaymentType) {
+             toast({ variant: 'destructive', title: 'Payment Method Required', description: 'Please select a manual payment method.' });
+            return;
+        }
+        
         const trainingBenefit = event.benefits?.find(b => b.id === 'benefit_training');
         if (trainingBenefit && !selectedBenefits.includes(trainingBenefit.id)) {
             setSelectedBenefits(prev => Array.from(new Set([...prev, trainingBenefit.id])));
@@ -163,19 +179,18 @@ export default function BuyTicketPage() {
                 pin: newPin,
                 ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
                 benefits: benefitsForTicket,
-                status: 'active',
+                status: 'active', // Status is active, but paymentStatus controls access
                 holderTitle: '',
                 backgroundImageUrl: event.ticketTemplate?.backgroundImageUrl || '',
                 backgroundImageOpacity,
-                totalPaid: totalCost
+                totalPaid: totalCost,
+                paymentMethod,
+                paymentStatus: paymentMethod === 'manual' ? 'pending' : 'completed',
             };
             
-            const createdTicketId = await addTicket(newTicket);
-            if (!createdTicketId || typeof createdTicketId !== 'string') {
-                throw new Error('addTicket returned an invalid ID');
-            }
+            const createdTicket = await addTicket(newTicket);
 
-            sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId: createdTicketId, pin: newPin, eventId: event.id }));
+            sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId: createdTicket.id, pin: newPin, eventId: event.id }));
             router.push(`/events/${event.id}/success`);
 
         } catch (error) {
@@ -188,6 +203,10 @@ export default function BuyTicketPage() {
     const currentPlan = organizerProfile?.planId ? PLANS[organizerProfile.planId] : PLANS['hobby'];
     const maxTickets = currentPlan.limits.maxTicketsPerEvent;
     const canPurchase = event ? ((event.ticketsIssued ?? 0) < maxTickets) : false;
+    
+    const hasWire = !!organizer?.paymentDetails?.wireTransfer?.accountNumber;
+    const hasMomo = !!organizer?.paymentDetails?.mobileMoney?.phoneNumber;
+    const hasManualOptions = hasWire || hasMomo;
 
     if (loading) {
         return <div className="flex min-h-screen items-center justify-center">Loading event details...</div>
@@ -206,7 +225,7 @@ export default function BuyTicketPage() {
                 <ArrowLeft className="mr-2" /> Back to event
             </Button>
             <div className="grid lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-2 space-y-8">
                     <Card>
                         <CardHeader>
                             <CardTitle>Secure Your Spot for {event.name}</CardTitle>
@@ -240,7 +259,7 @@ export default function BuyTicketPage() {
                         </CardContent>
                     </Card>
                     
-                    <Card className="mt-8">
+                    <Card>
                         <CardHeader>
                             <CardTitle>Event Benefits</CardTitle>
                             <CardDescription>Select optional add-ons to enhance your experience.</CardDescription>
@@ -277,6 +296,37 @@ export default function BuyTicketPage() {
                             ))}
                         </CardContent>
                     </Card>
+                    
+                     {hasManualOptions && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Payment Method</CardTitle>
+                                <CardDescription>Select how you'd like to pay.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <RadioGroup value={manualPaymentType} onValueChange={setManualPaymentType} className="grid sm:grid-cols-2 gap-4">
+                                     {hasWire && (
+                                        <div>
+                                            <RadioGroupItem value="wire" id="wire" className="peer sr-only" />
+                                            <Label htmlFor="wire" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
+                                                <Banknote className="mb-3 h-6 w-6" />
+                                                Wire Transfer
+                                            </Label>
+                                        </div>
+                                    )}
+                                    {hasMomo && (
+                                        <div>
+                                            <RadioGroupItem value="momo" id="momo" className="peer sr-only" />
+                                            <Label htmlFor="momo" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
+                                                <Smartphone className="mb-3 h-6 w-6" />
+                                                Mobile Money
+                                            </Label>
+                                        </div>
+                                    )}
+                                </RadioGroup>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
                 <div className="lg:col-span-1">
                     <Card className="sticky top-24">

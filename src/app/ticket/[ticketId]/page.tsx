@@ -5,11 +5,11 @@ import * as React from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { getTicketById, updateTicket, markTicketAsPaid } from '@/services/ticketService';
 import { getEventById } from '@/services/eventService';
-import type { Ticket, Event, Benefit, UserProfile } from '@/lib/types';
+import type { Ticket, Event, Benefit, UserProfile, Organizer } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer, CheckCircle2, XCircle, RefreshCw, AlertTriangle, WalletCards } from 'lucide-react';
+import { Loader2, Lock, Unlock, Check, CheckCheck, LogOut, Clock, Timer, CheckCircle2, XCircle, RefreshCw, AlertTriangle, WalletCards, Banknote, Smartphone } from 'lucide-react';
 import { TicketPreview } from '@/components/ticket-preview';
 import PinInput from '@/components/pin-input';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import { getOrganizerById } from '@/services/organizerService';
 
 const Countdown = ({ targetDate }: { targetDate: Date }) => {
     const calculateTimeLeft = React.useCallback(() => {
@@ -75,6 +76,7 @@ export default function ViewTicketPage() {
     
     const [ticket, setTicket] = React.useState<Ticket | null>(null);
     const [event, setEvent] = React.useState<Event | null>(null);
+    const [organizer, setOrganizer] = React.useState<Organizer | null>(null);
     const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
     const [loading, setLoading] = React.useState(true);
     const [isAuthorized, setIsAuthorized] = React.useState(false);
@@ -102,9 +104,15 @@ export default function ViewTicketPage() {
                 if (!event || event.id !== ticketData.eventId) {
                     const eventData = await getEventById(ticketData.eventId);
                     setEvent(eventData);
-                    if (eventData?.organizerId) {
-                        const profile = await getUserProfile(eventData.organizerId);
-                        setUserProfile(profile);
+                    if (eventData) {
+                        if (eventData.organizerId) {
+                            const [profile, orgData] = await Promise.all([
+                                getUserProfile(eventData.organizerId),
+                                getOrganizerById(eventData.organizerId)
+                            ]);
+                            setUserProfile(profile);
+                            setOrganizer(orgData);
+                        }
                     }
                 }
             } else {
@@ -192,9 +200,12 @@ export default function ViewTicketPage() {
     
     const benefitsByDay = groupBenefitsByDay();
     const today = startOfToday();
+    const isPaymentComplete = ticket.paymentStatus === 'completed';
 
     const renderPaymentStatus = () => {
         if (ticket.paymentMethod !== 'manual') return null;
+        const wire = organizer?.paymentDetails?.wireTransfer;
+        const momo = organizer?.paymentDetails?.mobileMoney;
 
         switch(ticket.paymentStatus) {
             case 'pending':
@@ -203,8 +214,29 @@ export default function ViewTicketPage() {
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Payment Pending</AlertTitle>
                         <AlertDescription>
-                            Your ticket is not yet active. Please complete the payment using the provided instructions, then confirm below.
-                             <Button onClick={handleMarkAsPaid} disabled={isMarkingPaid} className="w-full mt-3">
+                            Your ticket is not yet active. Please complete the payment using the instructions below, then confirm.
+                             <Card className="my-3 text-foreground bg-background/50">
+                                <CardContent className="p-4 text-sm space-y-3">
+                                   {wire?.accountNumber && (
+                                       <div className="space-y-1">
+                                            <h4 className="font-semibold flex items-center gap-2"><Banknote className="h-4 w-4" /> Wire Transfer</h4>
+                                            <p><strong>Bank:</strong> {wire.bankName}</p>
+                                            <p><strong>Account Name:</strong> {wire.accountName}</p>
+                                            <p><strong>Account Number:</strong> {wire.accountNumber}</p>
+                                        </div>
+                                   )}
+                                   {wire?.accountNumber && momo?.phoneNumber && <Separator />}
+                                    {momo?.phoneNumber && (
+                                       <div className="space-y-1">
+                                            <h4 className="font-semibold flex items-center gap-2"><Smartphone className="h-4 w-4" /> Mobile Money</h4>
+                                            <p><strong>Provider:</strong> {momo.provider}</p>
+                                            <p><strong>Name:</strong> {momo.accountName}</p>
+                                            <p><strong>Number:</strong> {momo.phoneNumber}</p>
+                                        </div>
+                                   )}
+                                </CardContent>
+                             </Card>
+                             <Button onClick={handleMarkAsPaid} disabled={isMarkingPaid} className="w-full mt-2">
                                 {isMarkingPaid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <WalletCards className="mr-2 h-4 w-4" />}
                                 {isMarkingPaid ? 'Submitting...' : 'I Have Paid'}
                             </Button>
@@ -238,39 +270,52 @@ export default function ViewTicketPage() {
     return (
         <div className="min-h-screen bg-[#110d19]">
             <div className="container mx-auto max-w-md p-4 sm:p-6 lg:p-8 flex flex-col items-center">
-                <TicketPreview ticket={ticket} event={event} userProfile={userProfile} onExit={() => setIsAuthorized(false)} />
+                {isPaymentComplete ? (
+                    <TicketPreview ticket={ticket} event={event} userProfile={userProfile} onExit={() => setIsAuthorized(false)} />
+                ) : (
+                    <Card className="w-full bg-card/80 backdrop-blur-sm border-white/10 text-white text-center p-6">
+                        <CardHeader>
+                            <CardTitle>Payment Required</CardTitle>
+                            <CardDescription>Your ticket will be available once payment is confirmed by the organizer.</CardDescription>
+                        </CardHeader>
+                         <CardContent>
+                             <Button onClick={() => setIsAuthorized(false)}><LogOut className="mr-2 h-4 w-4" /> Exit</Button>
+                         </CardContent>
+                    </Card>
+                )}
                 
                 {renderPaymentStatus()}
 
-                <div className="mt-8 w-full">
-                    <h2 className="text-2xl font-bold mb-4 text-white">Daily Benefits</h2>
-                    <div className="space-y-4">
-                       {benefitsByDay.map(({ day, date, benefits }) => {
-                           const dayStart = new Date(date);
-                           dayStart.setHours(0,0,0,0);
-                           const isToday = isSameDay(dayStart, today);
-                           const isFutureDay = isAfter(dayStart, today);
-                           const isPastDay = isBefore(dayStart, today);
-                           
-                           const getStatusIcon = () => {
-                               if (isFutureDay) return <Lock className="h-5 w-5 text-red-400" />;
-                               if (isToday) return <Unlock className="h-5 w-5 text-green-400" />;
-                               if (isPastDay) {
-                                   const benefitsForDay = benefits.filter(b => (b.days || []).includes(day));
-                                   const usedCount = benefitsForDay.filter(b => b.used && b.lastUsedDate === format(date, 'yyyy-MM-dd')).length;
-                                   
-                                   if (usedCount === benefitsForDay.length && benefitsForDay.length > 0) {
-                                       return <CheckCheck className="h-5 w-5 text-green-400" />;
-                                   }
-                                   if (usedCount > 0) {
-                                       return <Check className="h-5 w-5 text-blue-400" />;
-                                   }
-                                   return <CheckCheck className="h-5 w-5 text-blue-400" />;
-                               }
-                               return null;
-                           }
+                {isPaymentComplete && (
+                    <div className="mt-8 w-full">
+                        <h2 className="text-2xl font-bold mb-4 text-white">Daily Benefits</h2>
+                        <div className="space-y-4">
+                        {benefitsByDay.map(({ day, date, benefits }) => {
+                            const dayStart = new Date(date);
+                            dayStart.setHours(0,0,0,0);
+                            const isToday = isSameDay(dayStart, today);
+                            const isFutureDay = isAfter(dayStart, today);
+                            const isPastDay = isBefore(dayStart, today);
+                            
+                            const getStatusIcon = () => {
+                                const benefitsForDay = benefits.filter(b => (b.days || []).includes(day));
+                                if (isFutureDay) return <Lock className="h-5 w-5 text-red-400" />;
+                                if (isToday) return <Unlock className="h-5 w-5 text-green-400" />;
+                                if (isPastDay) {
+                                    const usedCount = benefitsForDay.filter(b => b.used && b.lastUsedDate === format(date, 'yyyy-MM-dd')).length;
+                                    
+                                    if (usedCount === benefitsForDay.length && benefitsForDay.length > 0) {
+                                        return <CheckCheck className="h-5 w-5 text-green-400" />;
+                                    }
+                                    if (usedCount > 0 && usedCount < benefitsForDay.length) {
+                                        return <Check className="h-5 w-5 text-blue-400" />;
+                                    }
+                                    return <CheckCheck className="h-5 w-5 text-blue-400" />;
+                                }
+                                return null;
+                            }
 
-                           return (
+                            return (
                                 <Card key={day} className="overflow-hidden relative bg-card/80 backdrop-blur-sm border-white/10">
                                     {isFutureDay && ticket.status === 'active' && (
                                         <div className="absolute inset-0 bg-black/60 z-10 flex flex-col items-center justify-center text-white">
@@ -306,10 +351,11 @@ export default function ViewTicketPage() {
                                         </ul>
                                     </CardContent>
                                 </Card>
-                           );
-                       })}
+                            );
+                        })}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );
