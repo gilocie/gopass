@@ -32,15 +32,16 @@ import { useAuth } from '@/hooks/use-auth';
 import { getUserProfile, requestPayout } from '@/services/userService';
 import type { Event, Ticket, UserProfile } from '@/lib/types';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { useRealtimeTickets } from '@/services/ticketService';
+import { useRealtimeTickets, confirmTicketPayment } from '@/services/ticketService';
 import { useFirestoreEvents } from '@/hooks/use-firestore-events';
 import { BASE_CURRENCY_CODE } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download, Filter } from 'lucide-react';
+import { Loader2, Download, Filter, BadgeCheck } from 'lucide-react';
 import { format as formatDate } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 
 export default function WalletPage() {
   const { user } = useAuth();
@@ -51,6 +52,7 @@ export default function WalletPage() {
   const { tickets, loading: loadingTickets } = useRealtimeTickets(9999);
   const { events, loading: loadingEvents } = useFirestoreEvents();
   const [isWithdrawing, setIsWithdrawing] = React.useState(false);
+  const [isConfirming, setIsConfirming] = React.useState<string | null>(null);
   const [withdrawAmount, setWithdrawAmount] = React.useState('');
 
   React.useEffect(() => {
@@ -67,7 +69,9 @@ export default function WalletPage() {
     }
   }, [user]);
   
-  const totalRevenue = tickets.reduce((acc, ticket) => acc + (ticket.totalPaid || 0), 0);
+  const totalRevenue = tickets
+    .filter(ticket => ticket.paymentStatus === 'completed')
+    .reduce((acc, ticket) => acc + (ticket.totalPaid || 0), 0);
   const totalPaidOut = userProfile?.totalPaidOut || 0;
   const currentBalance = totalRevenue - totalPaidOut;
 
@@ -95,6 +99,18 @@ export default function WalletPage() {
         setIsWithdrawing(false);
     }
   };
+  
+  const handleConfirmPayment = async (ticketId: string) => {
+    setIsConfirming(ticketId);
+    try {
+        await confirmTicketPayment(ticketId);
+        toast({ title: 'Payment Confirmed', description: 'The ticket has been activated.' });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Confirmation Failed', description: error.message });
+    } finally {
+        setIsConfirming(null);
+    }
+  };
 
 
   const getEventName = (eventId: string) => {
@@ -102,6 +118,21 @@ export default function WalletPage() {
   };
 
   const sortedTickets = [...tickets].sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+
+  const getStatusBadge = (ticket: Ticket) => {
+    switch(ticket.paymentStatus) {
+        case 'pending':
+            return <Badge variant="outline">Pending Payment</Badge>;
+        case 'awaiting-confirmation':
+            return <Badge variant="secondary" className="bg-yellow-500 text-black">Awaiting Confirmation</Badge>;
+        case 'completed':
+            return <Badge variant="default" className="bg-green-600">Completed</Badge>;
+        case 'failed':
+            return <Badge variant="destructive">Failed</Badge>;
+        default:
+            return <Badge variant="secondary">N/A</Badge>;
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -182,30 +213,46 @@ export default function WalletPage() {
                 <TableHeader>
                     <TableRow>
                         <TableHead>Date</TableHead>
-                        <TableHead>Event</TableHead>
                         <TableHead>Participant</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                      {loadingTickets || loadingEvents || loading ? (
-                        <TableRow><TableCell colSpan={4} className="text-center">Loading transactions...</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={5} className="text-center">Loading transactions...</TableCell></TableRow>
                     ) : sortedTickets.length > 0 ? (
                         sortedTickets.map(ticket => (
                             <TableRow key={ticket.id}>
                                 <TableCell>
                                     {ticket.createdAt ? formatDate(ticket.createdAt, 'dd MMM, yyyy') : 'N/A'}
                                 </TableCell>
-                                <TableCell>{getEventName(ticket.eventId)}</TableCell>
-                                <TableCell>{ticket.holderName}</TableCell>
-                                <TableCell className="text-right font-medium">
+                                <TableCell>
+                                    <div className="font-medium">{ticket.holderName}</div>
+                                    <div className="text-xs text-muted-foreground">{getEventName(ticket.eventId)}</div>
+                                </TableCell>
+                                <TableCell>{getStatusBadge(ticket)}</TableCell>
+                                <TableCell className="font-medium">
                                     {format(ticket.totalPaid || 0, (events.find(e => e.id === ticket.eventId)?.currency || BASE_CURRENCY_CODE) !== BASE_CURRENCY_CODE)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                     {ticket.paymentStatus === 'awaiting-confirmation' && (
+                                         <Button
+                                            size="sm"
+                                            onClick={() => handleConfirmPayment(ticket.id)}
+                                            disabled={isConfirming === ticket.id}
+                                        >
+                                            {isConfirming === ticket.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BadgeCheck className="mr-2 h-4 w-4" />}
+                                            {isConfirming === ticket.id ? 'Confirming...' : 'Confirm Payment'}
+                                        </Button>
+                                    )}
                                 </TableCell>
                             </TableRow>
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={4} className="text-center text-muted-foreground py-10">
+                            <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
                                 No sales transactions yet.
                             </TableCell>
                         </TableRow>

@@ -27,11 +27,13 @@ export const addTicket = async (ticket: OmitIdTicket): Promise<{ id: string }> =
         const ticketWithTimestamp = { ...ticket, createdAt: serverTimestamp() };
         const docRef = await addDoc(ticketsCollection, stripUndefined(ticketWithTimestamp));
         
-        // Increment the ticketsIssued count on the event
-        const eventDocRef = doc(db, 'events', ticket.eventId);
-        await updateDoc(eventDocRef, {
-            ticketsIssued: increment(1)
-        });
+        // Increment the ticketsIssued count on the event only if payment is not manual
+        if (ticket.paymentMethod !== 'manual') {
+            const eventDocRef = doc(db, 'events', ticket.eventId);
+            await updateDoc(eventDocRef, {
+                ticketsIssued: increment(1)
+            });
+        }
         
         return { id: docRef.id };
 
@@ -125,24 +127,56 @@ export const updateTicket = async (ticketId: string, ticket: Partial<Omit<Ticket
     }
 };
 
+// Attendee marks their manual payment as complete
+export const markTicketAsPaid = async (ticketId: string) => {
+    try {
+        const ticketDoc = doc(db, 'tickets', ticketId);
+        await updateDoc(ticketDoc, { paymentStatus: 'awaiting-confirmation' });
+    } catch (error) {
+        console.error("Error marking ticket as paid:", error);
+        throw new Error("Could not update payment status.");
+    }
+};
+
+// Organizer confirms a manual payment
+export const confirmTicketPayment = async (ticketId: string) => {
+    try {
+        const ticketDoc = doc(db, 'tickets', ticketId);
+        const ticket = await getTicketById(ticketId);
+        if (!ticket) throw new Error("Ticket not found");
+
+        await updateDoc(ticketDoc, {
+            paymentStatus: 'completed',
+            status: 'active'
+        });
+        
+        // Now that payment is confirmed, increment the event's ticket count
+        const eventDocRef = doc(db, 'events', ticket.eventId);
+        await updateDoc(eventDocRef, {
+            ticketsIssued: increment(1)
+        });
+
+    } catch (error) {
+        console.error("Error confirming ticket payment:", error);
+        throw new Error("Could not confirm payment.");
+    }
+};
+
 // Delete a ticket
 export const deleteTicket = async (ticketId: string) => {
     try {
-        // First, get the ticket to find the eventId
         const ticket = await getTicketById(ticketId);
         if (ticket) {
-            // Check if the event exists before trying to update it
             const eventDocRef = doc(db, 'events', ticket.eventId);
             const eventDocSnap = await getDoc(eventDocRef);
             
-            if (eventDocSnap.exists()) {
-                // Decrement the ticketsIssued count on the event
+            // Only decrement if the ticket was confirmed and counted
+            if (eventDocSnap.exists() && ticket.paymentStatus === 'completed') {
                 await updateDoc(eventDocRef, {
                     ticketsIssued: increment(-1)
                 });
             }
             
-             // Then, delete the ticket document
             const ticketDoc = doc(db, 'tickets', ticketId);
             await deleteDoc(ticketDoc);
         } else {
@@ -180,7 +214,6 @@ export function useEventTickets(eventId: string) {
                 } as Ticket);
             });
             
-            // Sort client-side to avoid composite index requirement
             ticketsData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
             
             setTickets(ticketsData);
