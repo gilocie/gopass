@@ -66,8 +66,7 @@ export function LandingHeader() {
             title: "Logged Out",
             description: "You have been successfully signed out.",
         });
-        // Use window.location.href to force a full reload, ensuring all state is cleared.
-        window.location.href = '/';
+        router.push('/');
     } catch (error) {
         toast({
             variant: "destructive",
