@@ -1,11 +1,16 @@
 
+'use client';
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket, QrCode, Users, BarChart2 } from 'lucide-react';
 import { LandingHeader } from '@/components/landing-header';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function Home() {
+  const { user, loading } = useAuth();
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <LandingHeader />
@@ -21,7 +26,11 @@ export default function Home() {
             </p>
             <div className="mt-8 flex justify-center gap-4">
               <Button size="lg" asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-                <Link href="/register">Get Started Free</Link>
+                {user ? (
+                   <Link href="/dashboard">Go to Dashboard</Link>
+                ) : (
+                  <Link href="/register">Get Started Free</Link>
+                )}
               </Button>
               <Button size="lg" variant="outline" asChild>
                 <Link href="/select-event-for-scan">Scan Ticket</Link>

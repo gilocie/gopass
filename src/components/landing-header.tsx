@@ -22,7 +22,7 @@ import type { Organizer } from '@/lib/types';
 import { getOrganizersByUserId } from '@/services/organizerService';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
-import { Settings } from 'lucide-react';
+import { Settings, Loader2 } from 'lucide-react';
 
 const publicNavLinks = [
     { href: '/events', label: 'Events' },
@@ -37,6 +37,7 @@ export function LandingHeader() {
   const { toast } = useToast();
   const [organizers, setOrganizers] = React.useState<Organizer[]>([]);
   const [loadingOrganizers, setLoadingOrganizers] = React.useState(true);
+  const [isNavigating, setIsNavigating] = React.useState(false);
 
   React.useEffect(() => {
     const fetchUserOrganizers = async () => {
@@ -75,6 +76,12 @@ export function LandingHeader() {
     }
   };
   
+  const handleDashboardClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    setIsNavigating(true);
+    router.push('/dashboard');
+  };
+
   const currentOrganizer = organizers[0];
   const logoUrl = currentOrganizer?.logoUrl;
 
@@ -101,7 +108,10 @@ export function LandingHeader() {
         ) : user ? (
           <>
             <Button variant="ghost" asChild>
-              <Link href="/dashboard">Dashboard</Link>
+              <Link href="/dashboard" onClick={handleDashboardClick}>
+                 {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                 Dashboard
+              </Link>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
