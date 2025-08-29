@@ -329,14 +329,6 @@ export default function DashboardPage() {
 
   const displayedUpgrades = sortedUpgradeHistory.slice(0, 3);
 
-  if (eventsLoading || !userProfile) {
-    return (
-        <div className="flex items-center justify-center h-full w-full absolute inset-0">
-            <ClientLoader />
-        </div>
-    );
-  }
-
   const getStatusBadge = (ticket: TicketType) => {
     const ticketEvent = events.find(e => e.id === ticket.eventId);
     const isLocal = (ticketEvent?.currency || BASE_CURRENCY_CODE) !== BASE_CURRENCY_CODE;
@@ -618,14 +610,14 @@ export default function DashboardPage() {
                                     return (
                                         <div key={benefit.id} className="flex justify-between text-sm">
                                             <span>{benefit.name}</span>
-                                            <span>{format(eventBenefit?.price || 0, true)}</span>
+                                            <span>${format(eventBenefit?.price || 0, true)}</span>
                                         </div>
                                     )
                                 })}
                                 <Separator className="my-2"/>
                                 <div className="flex justify-between font-bold text-base">
                                     <span>Total Paid:</span>
-                                    <span>{format(selectedTicket.totalPaid || 0, true)}</span>
+                                    <span>${format(selectedTicket.totalPaid || 0, true)}</span>
                                 </div>
                             </div>
                              {selectedTicket.paymentStatus === 'awaiting-confirmation' && (
