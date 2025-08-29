@@ -46,6 +46,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { BASE_CURRENCY_CODE } from '@/lib/currency';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { XlviLoader } from "react-awesome-loaders";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -328,10 +329,14 @@ export default function DashboardPage() {
 
   const displayedUpgrades = sortedUpgradeHistory.slice(0, 3);
 
-  if (eventsLoading) {
+  if (eventsLoading || !userProfile) {
     return (
         <div className="flex items-center justify-center h-full w-full absolute inset-0">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <XlviLoader
+                boxColors={["#EF4444", "#F59E0B", "#6366F1"]}
+                desktopSize={"128px"}
+                mobileSize={"100px"}
+            />
         </div>
     );
   }
