@@ -324,6 +324,15 @@ export default function VerifyPage() {
         }
         setMarkAllPinError('');
 
+        const today = startOfToday();
+        const eventStart = new Date(event.startDate);
+        if (isBefore(today, eventStart)) {
+            toast({ variant: 'destructive', title: 'Action Denied', description: 'Cannot mark benefits before the event has started.' });
+            setShowMarkAllDialog(false);
+            setMarkAllPin('');
+            return;
+        }
+
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const currentDayOfEvent = getDayOfEvent(event);
 
@@ -371,6 +380,8 @@ export default function VerifyPage() {
         if (isBefore(today, eventStart)) return 1; // If event hasn't started, default to day 1
         return differenceInDays(today, eventStart) + 1;
     };
+
+    const isEventActive = event ? !isBefore(startOfToday(), new Date(event.startDate)) : false;
 
     return (
         <div className="flex flex-col gap-6 items-center">
@@ -455,7 +466,7 @@ export default function VerifyPage() {
                             <div>
                                 <h4 className="font-semibold mb-2">Benefits (Day {getDayOfEvent(event)})</h4>
                                 <div className="space-y-2 relative">
-                                     {isBefore(startOfToday(), new Date(event.startDate)) && (
+                                     {!isEventActive && (
                                         <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center text-white rounded-md">
                                             <Lock className="h-8 w-8 mb-2" />
                                             <Countdown targetDate={new Date(event.startDate)} />
@@ -467,19 +478,14 @@ export default function VerifyPage() {
                                         const benefitIndex = scannedTicket.benefits.findIndex(b => b.id === benefit.id);
                                         const now = new Date();
                                         const today = startOfToday();
-                                        const eventStart = new Date(event.startDate);
-                                        const isEventLocked = isBefore(today, eventStart);
-                                        const currentEventDayDate = isEventLocked ? eventStart : today;
-
-                                        if (!isSameDay(currentEventDayDate, today) && !isEventLocked) return null;
-
+                                        
                                         const todayStr = format(today, 'yyyy-MM-dd');
                                         const isUsedToday = benefit.used && benefit.lastUsedDate === todayStr;
 
                                         const startTime = benefit.startTime ? parse(benefit.startTime, 'HH:mm', now) : null;
                                         const endTime = benefit.endTime ? parse(benefit.endTime, 'HH:mm', now) : null;
                                         
-                                        const isExpired = !isUsedToday && endTime && isAfter(now, endTime);
+                                        const isExpired = !isUsedToday && endTime && isAfter(now, endTime) && isEventActive;
 
                                         return (
                                             <div key={benefit.id} className="flex items-center space-x-2 p-3 bg-secondary rounded-md">
@@ -491,13 +497,13 @@ export default function VerifyPage() {
                                                             setBenefitToMark({ index: benefitIndex, name: benefit.name });
                                                         }
                                                     }}
-                                                    disabled={isUsedToday || isExpired || isEventLocked}
+                                                    disabled={isUsedToday || isExpired || !isEventActive}
                                                 />
                                                 <div className="flex-1">
                                                     <Label htmlFor={`benefit-${benefit.id}`} className={cn((isUsedToday || isExpired) && 'line-through text-muted-foreground', 'cursor-pointer')}>
                                                         {benefit.name}
                                                     </Label>
-                                                    <BenefitStatus benefit={benefit} event={event} />
+                                                    {isEventActive && <BenefitStatus benefit={benefit} event={event} />}
                                                 </div>
                                             </div>
                                         );
@@ -511,9 +517,11 @@ export default function VerifyPage() {
                                      <Button variant="destructive" onClick={handleTicketStatusChange}>
                                         {scannedTicket.status === 'active' ? 'Cancel Ticket' : 'Reactivate Ticket'}
                                     </Button>
-                                    <Button variant="outline" onClick={() => setShowMarkAllDialog(true)}>
-                                        <CheckCheck className="mr-2 h-4 w-4" /> Mark All for Today
-                                    </Button>
+                                    {isEventActive && (
+                                        <Button variant="outline" onClick={() => setShowMarkAllDialog(true)}>
+                                            <CheckCheck className="mr-2 h-4 w-4" /> Mark All for Today
+                                        </Button>
+                                    )}
                                     <Button onClick={handleReset} className="w-full sm:w-auto">Done</Button>
                                  </div>
                              </div>
