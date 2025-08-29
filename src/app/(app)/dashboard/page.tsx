@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X, Wallet, BadgeCheck, Link as LinkIcon, Loader2, Upload } from 'lucide-react';
+import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X, Wallet, BadgeCheck, Link as LinkIcon, Loader2, Upload, File } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestoreEvents } from '@/hooks/use-firestore-events';
 import { EventCard } from '@/components/event-card';
@@ -43,7 +43,7 @@ import { getUserProfile } from '@/services/userService';
 import { PLANS, PlanId } from '@/lib/plans';
 import Logo from '@/components/logo';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { BASE_CURRENCY_CODE, formatEventPrice } from '@/lib/currency';
+import { BASE_CURRENCY_CODE, formatCurrency } from '@/lib/currency';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { ClientLoader } from '@/components/client-loader';
@@ -162,9 +162,15 @@ export default function DashboardPage() {
   };
   
   const handlePrintInvoice = () => {
-      if (!selectedTicket || !selectedEvent || !selectedOrganizer) return;
-      
-      const PrintableInvoice = () => (
+    if (!selectedTicket || !selectedEvent || !selectedOrganizer) return;
+
+    const benefitsHtml = selectedTicket.benefits.map(benefit => {
+        const eventBenefit = selectedEvent.benefits?.find(b => b.id === benefit.id);
+        const price = formatCurrency(eventBenefit?.price || 0, currency);
+        return `<div class="summary-item"><span>${benefit.name}</span><span>${price}</span></div>`;
+    }).join('');
+
+    const PrintableInvoice = () => (
         <html>
             <head>
                 <title>Print Invoice</title>
@@ -207,35 +213,27 @@ export default function DashboardPage() {
 
                     <div className="summary-section">
                         <h3>Order Summary for "${selectedEvent.name}"</h3>
-                        ${selectedTicket.benefits.map(benefit => {
-                            const eventBenefit = selectedEvent.benefits?.find(b => b.id === benefit.id);
-                            return (
-                                `<div class="summary-item">
-                                    <span>${benefit.name}</span>
-                                    <span>${format(eventBenefit?.price || 0, true)}</span>
-                                </div>`
-                            )
-                        }).join('')}
-                        <div class="total">
+                        <div dangerouslySetInnerHTML={{ __html: benefitsHtml }} />
+                        <div className="total">
                             <span>Total Paid:</span>
-                            <span>${format(selectedTicket.totalPaid || 0, true)}</span>
+                            <span>${formatCurrency(selectedTicket.totalPaid || 0, currency)}</span>
                         </div>
                     </div>
                 </div>
             </body>
         </html>
-      );
-      
-      const printContent = renderToStaticMarkup(<PrintableInvoice />);
-      const newWindow = window.open('', '_blank', 'height=600,width=800');
-      newWindow?.document.write(printContent);
-      newWindow?.document.close();
-      newWindow?.focus();
-      setTimeout(() => {
-          newWindow?.print();
-          newWindow?.close();
-      }, 250);
-  };
+    );
+
+    const printContent = renderToStaticMarkup(<PrintableInvoice />);
+    const newWindow = window.open('', '_blank', 'height=600,width=800');
+    newWindow?.document.write(printContent);
+    newWindow?.document.close();
+    newWindow?.focus();
+    setTimeout(() => {
+        newWindow?.print();
+        newWindow?.close();
+    }, 250);
+};
   
   const handlePrintUpgradeInvoice = () => {
     if (!selectedUpgrade || !primaryOrganization) return;
@@ -615,17 +613,18 @@ export default function DashboardPage() {
                                 <h3 className="font-semibold text-base">Order Summary for "{selectedEvent.name}"</h3>
                                 {selectedTicket.benefits.map(benefit => {
                                     const eventBenefit = selectedEvent.benefits?.find(b => b.id === benefit.id);
+                                    const price = formatCurrency(eventBenefit?.price || 0, currency);
                                     return (
                                         <div key={benefit.id} className="flex justify-between text-sm">
                                             <span>{benefit.name}</span>
-                                            <span>{formatEventPrice({ price: eventBenefit?.price || 0, currency: selectedEvent.currency })}</span>
+                                            <span>{price}</span>
                                         </div>
                                     )
                                 })}
                                 <Separator className="my-2"/>
                                 <div className="flex justify-between font-bold text-base">
                                     <span>Total Paid:</span>
-                                    <span>{formatEventPrice({ price: selectedTicket.totalPaid || 0, currency: selectedEvent.currency })}</span>
+                                    <span>{formatCurrency(selectedTicket.totalPaid || 0, currency)}</span>
                                 </div>
                             </div>
                              {selectedTicket.paymentStatus === 'awaiting-confirmation' && (
