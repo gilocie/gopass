@@ -43,7 +43,7 @@ import { getUserProfile } from '@/services/userService';
 import { PLANS, PlanId } from '@/lib/plans';
 import Logo from '@/components/logo';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { BASE_CURRENCY_CODE } from '@/lib/currency';
+import { BASE_CURRENCY_CODE, formatEventPrice } from '@/lib/currency';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { ClientLoader } from '@/components/client-loader';
@@ -630,13 +630,6 @@ export default function DashboardPage() {
                             </div>
                              {selectedTicket.paymentStatus === 'awaiting-confirmation' && (
                                 <div className="mt-4 pt-4 border-t space-y-3">
-                                    {selectedTicket.receiptUrl && (
-                                        <Button variant="outline" className="w-full" asChild>
-                                            <a href={selectedTicket.receiptUrl} target="_blank" rel="noopener noreferrer">
-                                                <LinkIcon className="mr-2 h-4 w-4" /> View Receipt
-                                            </a>
-                                        </Button>
-                                    )}
                                     <Button
                                         className="w-full"
                                         onClick={() => handleConfirmPayment(selectedTicket.id)}
