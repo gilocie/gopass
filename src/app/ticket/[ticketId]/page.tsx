@@ -47,7 +47,7 @@ const Countdown = ({ targetDate }: { targetDate: Date }) => {
         }, 1000);
         return () => clearInterval(timer);
     }, [calculateTimeLeft]);
-    
+
     const { days, hours, minutes, seconds } = timeLeft;
 
     if (days === 0 && hours === 0 && minutes === 0 && seconds === 0) {
@@ -61,7 +61,7 @@ const Countdown = ({ targetDate }: { targetDate: Date }) => {
                 {days > 0 && <span>{days}d </span>}
                 {hours > 0 && <span>{hours}h </span>}
                 {minutes > 0 && <span>{minutes}m </span>}
-                <span className="inline-block animate-[pulse_1s_ease-in-out_infinite]">{seconds}s</span>
+                <span>{seconds}s</span>
             </p>
         </div>
     );
