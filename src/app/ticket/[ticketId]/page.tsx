@@ -39,7 +39,7 @@ const Countdown = ({ targetDate }: { targetDate: Date }) => {
         return timeLeft;
     }, [targetDate]);
 
-    const [timeLeft, setTimeLeft] = React.useState(calculateTimeLeft);
+    const [timeLeft, setTimeLeft] = React.useState(calculateTimeLeft());
 
     React.useEffect(() => {
         const timer = setInterval(() => {
@@ -47,7 +47,7 @@ const Countdown = ({ targetDate }: { targetDate: Date }) => {
         }, 1000);
         return () => clearInterval(timer);
     }, [calculateTimeLeft]);
-
+    
     const { days, hours, minutes, seconds } = timeLeft;
 
     if (days === 0 && hours === 0 && minutes === 0 && seconds === 0) {
@@ -83,14 +83,8 @@ export default function ViewTicketPage() {
     const [pin, setPin] = React.useState('');
     const [pinError, setPinError] = React.useState('');
     const { toast } = useToast();
-    const [now, setNow] = React.useState(new Date());
     const [isMarkingPaid, setIsMarkingPaid] = React.useState(false);
     const [receiptDataUrl, setReceiptDataUrl] = React.useState<string | null>(null);
-
-    React.useEffect(() => {
-        const timer = setInterval(() => setNow(new Date()), 1000); // Update every second for countdown and status
-        return () => clearInterval(timer);
-    }, []);
 
     React.useEffect(() => {
         if (!ticketId) return;
@@ -354,8 +348,8 @@ export default function ViewTicketPage() {
                                             {benefits.filter(b => (b.days || []).includes(day)).map(benefit => {
                                                 const hasBeenUsedOnThisDay = benefit.used && benefit.lastUsedDate === format(date, 'yyyy-MM-dd');
                                                 const endTimeString = benefit.endTime || '';
-                                                const endTime = endTimeString ? parse(endTimeString, 'HH:mm', now) : null;
-                                                const hasTimeExpiredToday = endTime && isAfter(now, endTime) && isSameDay(date, now);
+                                                const endTime = endTimeString ? parse(endTimeString, 'HH:mm', new Date()) : null;
+                                                const hasTimeExpiredToday = endTime && isAfter(new Date(), endTime) && isSameDay(date, new Date());
                                                 const isExpired = !hasBeenUsedOnThisDay && (isPastDay || hasTimeExpiredToday);
 
                                                 return (
