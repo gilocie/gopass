@@ -50,12 +50,6 @@ const Countdown = ({ targetDate }: { targetDate: Date }) => {
     });
     
     const { days, hours, minutes, seconds } = timeLeft;
-    const timeParts = [];
-    if (days > 0) timeParts.push(`${days}d`);
-    if (hours > 0) timeParts.push(`${hours}h`);
-    if (minutes > 0) timeParts.push(`${minutes}m`);
-    timeParts.push(`${seconds}s`);
-
 
     if (days === 0 && hours === 0 && minutes === 0 && seconds === 0) {
         return <span className="text-primary font-semibold">Unlocked</span>;
@@ -64,7 +58,12 @@ const Countdown = ({ targetDate }: { targetDate: Date }) => {
     return (
         <div className="font-mono text-center">
             <p className="text-sm">Unlocks in</p>
-            <p className="text-lg font-semibold tracking-wider">{timeParts.join(' ')}</p>
+            <p className="text-lg font-semibold tracking-wider">
+                {days > 0 && <span>{days}d </span>}
+                {hours > 0 && <span>{hours}h </span>}
+                {minutes > 0 && <span>{minutes}m </span>}
+                <span className="inline-block animate-[pulse_1s_ease-in-out_infinite]">{seconds}s</span>
+            </p>
         </div>
     );
 };
