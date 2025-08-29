@@ -42,11 +42,11 @@ const Countdown = ({ targetDate }: { targetDate: Date }) => {
     const [timeLeft, setTimeLeft] = React.useState(calculateTimeLeft);
 
     React.useEffect(() => {
-        const timer = setTimeout(() => {
+        const timer = setInterval(() => {
             setTimeLeft(calculateTimeLeft());
         }, 1000);
-        return () => clearTimeout(timer);
-    });
+        return () => clearInterval(timer);
+    }, [calculateTimeLeft]);
     
     const { days, hours, minutes, seconds } = timeLeft;
 
