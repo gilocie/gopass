@@ -66,7 +66,8 @@ export function LandingHeader() {
             title: "Logged Out",
             description: "You have been successfully signed out.",
         });
-        window.location.href = '/'; // Force a full page reload
+        // Use window.location.href to force a full reload, ensuring all state is cleared.
+        window.location.href = '/';
     } catch (error) {
         toast({
             variant: "destructive",
