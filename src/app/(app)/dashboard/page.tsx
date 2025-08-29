@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X, Wallet, BadgeCheck, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { ArrowUpRight, Ticket, Users, DollarSign, CalendarPlus, PlusCircle, Trash2, Share2, Printer, FileDown, Search, Rocket, Building, X, Wallet, BadgeCheck, Link as LinkIcon, Loader2, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestoreEvents } from '@/hooks/use-firestore-events';
 import { EventCard } from '@/components/event-card';
@@ -49,7 +49,7 @@ import { Badge } from '@/components/ui/badge';
 import { ClientLoader } from '@/components/client-loader';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { events, loading: eventsLoading } = useFirestoreEvents();
   const { toast } = useToast();
   const { format, currency } = useCurrency();
@@ -618,14 +618,14 @@ export default function DashboardPage() {
                                     return (
                                         <div key={benefit.id} className="flex justify-between text-sm">
                                             <span>{benefit.name}</span>
-                                            <span>{format(eventBenefit?.price || 0, true)}</span>
+                                            <span>{formatEventPrice({ price: eventBenefit?.price || 0, currency: selectedEvent.currency })}</span>
                                         </div>
                                     )
                                 })}
                                 <Separator className="my-2"/>
                                 <div className="flex justify-between font-bold text-base">
                                     <span>Total Paid:</span>
-                                    <span>{format(selectedTicket.totalPaid || 0, true)}</span>
+                                    <span>{formatEventPrice({ price: selectedTicket.totalPaid || 0, currency: selectedEvent.currency })}</span>
                                 </div>
                             </div>
                              {selectedTicket.paymentStatus === 'awaiting-confirmation' && (
