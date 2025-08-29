@@ -362,6 +362,14 @@ export default function DashboardPage() {
     }
   }
 
+  if (authLoading || eventsLoading || !userProfile) {
+    return (
+        <div className="flex items-center justify-center h-full w-full absolute inset-0">
+          <ClientLoader />
+        </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -610,14 +618,14 @@ export default function DashboardPage() {
                                     return (
                                         <div key={benefit.id} className="flex justify-between text-sm">
                                             <span>{benefit.name}</span>
-                                            <span>${format(eventBenefit?.price || 0, true)}</span>
+                                            <span>{format(eventBenefit?.price || 0, true)}</span>
                                         </div>
                                     )
                                 })}
                                 <Separator className="my-2"/>
                                 <div className="flex justify-between font-bold text-base">
                                     <span>Total Paid:</span>
-                                    <span>${format(selectedTicket.totalPaid || 0, true)}</span>
+                                    <span>{format(selectedTicket.totalPaid || 0, true)}</span>
                                 </div>
                             </div>
                              {selectedTicket.paymentStatus === 'awaiting-confirmation' && (
@@ -655,6 +663,18 @@ export default function DashboardPage() {
                                     </TooltipTrigger>
                                     <TooltipContent side="right"><p>Print Invoice</p></TooltipContent>
                                 </Tooltip>
+                                {selectedTicket.receiptUrl && selectedTicket.paymentStatus === 'awaiting-confirmation' && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button variant="outline" size="icon" asChild>
+                                                <a href={selectedTicket.receiptUrl} target="_blank" rel="noopener noreferrer">
+                                                    <FileDown />
+                                                </a>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right"><p>View Receipt</p></TooltipContent>
+                                    </Tooltip>
+                                )}
                                 <AlertDialog>
                                     <Tooltip>
                                         <TooltipTrigger asChild>

@@ -154,10 +154,10 @@ export default function ViewTicketPage() {
     };
 
     const handleMarkAsPaid = async () => {
-        if (!ticket) return;
+        if (!ticket || !receiptDataUrl) return;
         setIsMarkingPaid(true);
         try {
-            await markTicketAsPaid(ticket.id, receiptDataUrl || undefined);
+            await markTicketAsPaid(ticket.id, receiptDataUrl);
             toast({ title: 'Success', description: 'The organizer has been notified and will confirm your payment shortly.' });
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
@@ -251,10 +251,10 @@ export default function ViewTicketPage() {
                                 </CardContent>
                              </Card>
                              <div className="grid gap-1.5">
-                                <label htmlFor="receipt" className="text-xs font-medium flex items-center gap-2"><Upload className="h-3 w-3" /> Upload Receipt (Optional)</label>
+                                <label htmlFor="receipt" className="text-xs font-medium flex items-center gap-2"><Upload className="h-3 w-3" /> Upload Receipt</label>
                                 <Input id="receipt" type="file" onChange={handleReceiptFileChange} accept="image/*,application/pdf" className="text-xs file:text-xs" />
                              </div>
-                             <Button onClick={handleMarkAsPaid} disabled={isMarkingPaid} className="w-full mt-2">
+                             <Button onClick={handleMarkAsPaid} disabled={isMarkingPaid || !receiptDataUrl} className="w-full mt-2">
                                 {isMarkingPaid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <WalletCards className="mr-2 h-4 w-4" />}
                                 {isMarkingPaid ? 'Submitting...' : 'I Have Paid'}
                             </Button>
@@ -379,5 +379,3 @@ export default function ViewTicketPage() {
         </div>
     );
 }
-
-    

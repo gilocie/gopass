@@ -132,7 +132,7 @@ export const updateTicket = async (ticketId: string, ticket: Partial<Omit<Ticket
 };
 
 // Attendee marks their manual payment as complete
-export const markTicketAsPaid = async (ticketId: string, receiptUrl?: string) => {
+export const markTicketAsPaid = async (ticketId: string, receiptUrl: string) => {
     try {
         const ticketDoc = doc(db, 'tickets', ticketId);
         const updateData: { paymentStatus: string; receiptUrl?: string } = {
@@ -274,5 +274,3 @@ export const useRealtimeTickets = (count: number) => {
 
     return { tickets, loading };
 }
-
-    
