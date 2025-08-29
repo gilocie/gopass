@@ -47,7 +47,6 @@ import { BASE_CURRENCY_CODE } from '@/lib/currency';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 
-
 export default function DashboardPage() {
   const { user } = useAuth();
   const { events, loading: eventsLoading } = useFirestoreEvents();
@@ -330,7 +329,11 @@ export default function DashboardPage() {
   const displayedUpgrades = sortedUpgradeHistory.slice(0, 3);
 
   if (eventsLoading) {
-    return <div>Loading dashboard...</div>;
+    return (
+        <div className="flex items-center justify-center h-full w-full absolute inset-0">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+    );
   }
 
   const getStatusBadge = (ticket: TicketType) => {
