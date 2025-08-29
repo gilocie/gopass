@@ -43,7 +43,7 @@ import { getUserProfile } from '@/services/userService';
 import { PLANS, PlanId } from '@/lib/plans';
 import Logo from '@/components/logo';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { BASE_CURRENCY_CODE, formatCurrency } from '@/lib/currency';
+import { BASE_CURRENCY_CODE, formatCurrency, currencies } from '@/lib/currency';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { ClientLoader } from '@/components/client-loader';
@@ -164,9 +164,11 @@ export default function DashboardPage() {
   const handlePrintInvoice = () => {
     if (!selectedTicket || !selectedEvent || !selectedOrganizer) return;
 
+    const eventCurrency = currencies[selectedEvent.currency] || currencies[BASE_CURRENCY_CODE];
+
     const benefitsHtml = selectedTicket.benefits.map(benefit => {
         const eventBenefit = selectedEvent.benefits?.find(b => b.id === benefit.id);
-        const price = formatCurrency(eventBenefit?.price || 0, currency);
+        const price = formatCurrency(eventBenefit?.price || 0, eventCurrency);
         return `<div class="summary-item"><span>${benefit.name}</span><span>${price}</span></div>`;
     }).join('');
 
@@ -216,7 +218,7 @@ export default function DashboardPage() {
                         <div dangerouslySetInnerHTML={{ __html: benefitsHtml }} />
                         <div className="total">
                             <span>Total Paid:</span>
-                            <span>${formatCurrency(selectedTicket.totalPaid || 0, currency)}</span>
+                            <span>${formatCurrency(selectedTicket.totalPaid || 0, eventCurrency)}</span>
                         </div>
                     </div>
                 </div>
@@ -613,7 +615,8 @@ export default function DashboardPage() {
                                 <h3 className="font-semibold text-base">Order Summary for "{selectedEvent.name}"</h3>
                                 {selectedTicket.benefits.map(benefit => {
                                     const eventBenefit = selectedEvent.benefits?.find(b => b.id === benefit.id);
-                                    const price = formatCurrency(eventBenefit?.price || 0, currency);
+                                    const eventCurrency = currencies[selectedEvent.currency] || currencies[BASE_CURRENCY_CODE];
+                                    const price = formatCurrency(eventBenefit?.price || 0, eventCurrency);
                                     return (
                                         <div key={benefit.id} className="flex justify-between text-sm">
                                             <span>{benefit.name}</span>
@@ -624,7 +627,7 @@ export default function DashboardPage() {
                                 <Separator className="my-2"/>
                                 <div className="flex justify-between font-bold text-base">
                                     <span>Total Paid:</span>
-                                    <span>{formatCurrency(selectedTicket.totalPaid || 0, currency)}</span>
+                                    <span>{formatCurrency(selectedTicket.totalPaid || 0, currencies[selectedEvent.currency] || currencies[BASE_CURRENCY_CODE])}</span>
                                 </div>
                             </div>
                              {selectedTicket.paymentStatus === 'awaiting-confirmation' && (
