@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { QrCode, ScanLine, UserCheck, XCircle, RefreshCw, VideoOff, X, Video, CheckCircle2, AlertTriangle, Timer, Clock, CheckCheck } from "lucide-react";
+import { QrCode, ScanLine, UserCheck, XCircle, RefreshCw, VideoOff, X, Video, CheckCircle2, AlertTriangle, Timer, Clock, CheckCheck, Lock, Unlock } from "lucide-react";
 import PinInput from '@/components/pin-input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -28,10 +28,55 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getEventById } from '@/services/eventService';
-import { differenceInDays, format, isAfter, isBefore, isSameDay, parse, startOfToday } from 'date-fns';
+import { differenceInDays, format, isAfter, isBefore, isSameDay, parse, startOfToday, differenceInMilliseconds } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type ScanStatus = 'idle' | 'scanning' | 'success' | 'error' | 'authenticating';
+
+const Countdown = ({ targetDate }: { targetDate: Date }) => {
+    const calculateTimeLeft = React.useCallback(() => {
+        const difference = differenceInMilliseconds(targetDate, new Date());
+        let timeLeft = { days: 0, hours: 0, minutes: 0, seconds: 0 };
+
+        if (difference > 0) {
+            timeLeft = {
+                days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+                hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+                minutes: Math.floor((difference / 1000 / 60) % 60),
+                seconds: Math.floor((difference / 1000) % 60),
+            };
+        }
+        return timeLeft;
+    }, [targetDate]);
+
+    const [timeLeft, setTimeLeft] = React.useState(calculateTimeLeft);
+
+    React.useEffect(() => {
+        const timer = setInterval(() => {
+            setTimeLeft(calculateTimeLeft());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [calculateTimeLeft]);
+    
+    const { days, hours, minutes, seconds } = timeLeft;
+
+    if (days === 0 && hours === 0 && minutes === 0 && seconds === 0) {
+        return <span className="text-primary font-semibold">Unlocked</span>;
+    }
+
+    return (
+        <div className="font-mono text-center">
+            <p className="text-sm">Unlocks in</p>
+            <p className="text-lg font-semibold tracking-wider">
+                {days > 0 && <span>{days}d </span>}
+                {hours > 0 && <span>{hours}h </span>}
+                {minutes > 0 && <span>{minutes}m </span>}
+                <span className="inline-block animate-[pulse_1s_ease-in-out_infinite]">{seconds}s</span>
+            </p>
+        </div>
+    );
+};
+
 
 const BenefitStatus = ({ benefit, event }: { benefit: Benefit, event: Event }) => {
     const [now, setNow] = React.useState(new Date());
@@ -409,7 +454,13 @@ export default function VerifyPage() {
                         <CardContent className="space-y-4">
                             <div>
                                 <h4 className="font-semibold mb-2">Benefits (Day {getDayOfEvent(event)})</h4>
-                                <div className="space-y-2">
+                                <div className="space-y-2 relative">
+                                     {isBefore(startOfToday(), new Date(event.startDate)) && (
+                                        <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center text-white rounded-md">
+                                            <Lock className="h-8 w-8 mb-2" />
+                                            <Countdown targetDate={new Date(event.startDate)} />
+                                        </div>
+                                    )}
                                     {scannedTicket.benefits
                                         .filter(benefit => benefit.days.includes(getDayOfEvent(event)))
                                         .map((benefit) => {
@@ -417,9 +468,10 @@ export default function VerifyPage() {
                                         const now = new Date();
                                         const today = startOfToday();
                                         const eventStart = new Date(event.startDate);
-                                        const currentEventDayDate = isBefore(today, eventStart) ? eventStart : today;
+                                        const isEventLocked = isBefore(today, eventStart);
+                                        const currentEventDayDate = isEventLocked ? eventStart : today;
 
-                                        if (!isSameDay(currentEventDayDate, today)) return null;
+                                        if (!isSameDay(currentEventDayDate, today) && !isEventLocked) return null;
 
                                         const todayStr = format(today, 'yyyy-MM-dd');
                                         const isUsedToday = benefit.used && benefit.lastUsedDate === todayStr;
@@ -439,7 +491,7 @@ export default function VerifyPage() {
                                                             setBenefitToMark({ index: benefitIndex, name: benefit.name });
                                                         }
                                                     }}
-                                                    disabled={isUsedToday || isExpired}
+                                                    disabled={isUsedToday || isExpired || isEventLocked}
                                                 />
                                                 <div className="flex-1">
                                                     <Label htmlFor={`benefit-${benefit.id}`} className={cn((isUsedToday || isExpired) && 'line-through text-muted-foreground', 'cursor-pointer')}>
