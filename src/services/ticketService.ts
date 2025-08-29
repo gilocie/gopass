@@ -36,6 +36,9 @@ export const addTicket = async (ticket: OmitIdTicket): Promise<string> => {
             });
         }
         
+        if (!docRef.id) {
+            throw new Error("Document created without an ID.");
+        }
         return docRef.id;
 
     } catch (error) {

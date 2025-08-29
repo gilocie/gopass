@@ -191,12 +191,12 @@ export default function BuyTicketPage() {
                 paymentStatus: paymentMethod === 'manual' ? 'pending' : 'completed',
             };
             
-            const createdTicket = await addTicket(newTicket);
-            if (!createdTicket || !createdTicket.id) {
+            const createdTicketId = await addTicket(newTicket);
+            if (!createdTicketId) {
                 throw new Error("addTicket returned an invalid ID");
             }
 
-            sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId: createdTicket.id, pin: newPin, eventId: event.id }));
+            sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId: createdTicketId, pin: newPin, eventId: event.id }));
             router.push(`/events/${event.id}/success`);
 
         } catch (error) {
