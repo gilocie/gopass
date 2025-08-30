@@ -11,15 +11,12 @@ import { Eye, MapPin, Ticket, Users } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { formatEventPrice } from '@/lib/currency';
-import { PLANS } from '@/lib/plans';
 
 export const PublicEventCard = ({ event }: { event: Event }) => {
     const defaultBanner = 'https://placehold.co/600x400.png';
     
-    // Although we don't have the organizer's profile here, we can infer a default max.
-    // A more robust solution would be to include organizer planId in the event data.
-    // For now, we assume the base plan if ticketsTotal is not set.
-    const maxTickets = event.ticketsTotal || PLANS.hobby.limits.maxTicketsPerEvent;
+    // Use the ticketsTotal from the event object, which is set based on the plan during creation.
+    const maxTickets = event.ticketsTotal;
     const canPurchase = event.ticketsIssued < maxTickets;
 
     return (
