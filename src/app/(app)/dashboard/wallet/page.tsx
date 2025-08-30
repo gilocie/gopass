@@ -149,18 +149,18 @@ export default function WalletPage() {
       <div className="grid md:grid-cols-3 gap-6">
         <Card>
             <CardHeader>
-                <CardTitle>Current Balance</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="text-3xl font-bold">{format(currentBalance, currency.code !== BASE_CURRENCY_CODE)}</div>
-            </CardContent>
-        </Card>
-        <Card>
-            <CardHeader>
                 <CardTitle>Total Revenue</CardTitle>
             </CardHeader>
             <CardContent>
                  <div className="text-3xl font-bold">{format(totalRevenue, currency.code !== BASE_CURRENCY_CODE)}</div>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader>
+                <CardTitle>Current Balance</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="text-3xl font-bold">{format(currentBalance, currency.code !== BASE_CURRENCY_CODE)}</div>
             </CardContent>
         </Card>
         <Card>
