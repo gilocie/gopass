@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Loader2, Banknote, Smartphone, Upload, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, Smartphone, Upload, CheckCircle2, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
@@ -51,6 +51,7 @@ export default function BuyTicketPage() {
     const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('online');
     const [manualPaymentType, setManualPaymentType] = React.useState('');
     const [receiptDataUrl, setReceiptDataUrl] = React.useState<string | null>(null);
+    const [phonePlaceholder, setPhonePlaceholder] = React.useState('991234567');
 
     // Online Payment State
     const [paymentStatus, setPaymentStatus] = React.useState<'idle' | 'pending' | 'success' | 'failed'>('idle');
@@ -246,7 +247,6 @@ export default function BuyTicketPage() {
         setPaymentStatus('pending');
 
         try {
-            // Optimistically create the ticket in a 'completed' state for online payments
             const { ticketId, pin } = await createTicketInDb('completed', 'online');
             
             const result = await initiateDeposit({
@@ -276,8 +276,8 @@ export default function BuyTicketPage() {
     }
 
     const handleManualPayment = async () => {
-        if (!manualPaymentType || !receiptDataUrl) {
-            toast({ variant: 'destructive', title: 'Details Required', description: 'Please select a payment type and upload your receipt.' });
+        if (!receiptDataUrl) {
+            toast({ variant: 'destructive', title: 'Details Required', description: 'Please upload your receipt.' });
             setIsPurchasing(false);
             return;
         }
@@ -303,15 +303,25 @@ export default function BuyTicketPage() {
             setReceiptDataUrl(null);
         }
     };
+    
+    const handleProviderChange = (providerId: string) => {
+        const provider = providers.find(p => p.provider === providerId) || null;
+        setSelectedProvider(provider);
+        if (provider?.provider.includes('AIRTEL')) {
+            setPhonePlaceholder('991234567');
+        } else if (provider?.provider.includes('TNM')) {
+            setPhonePlaceholder('881234567');
+        } else {
+            setPhonePlaceholder('e.g. 991234567');
+        }
+    };
 
 
     const currentPlan = organizerProfile?.planId ? PLANS[organizerProfile.planId] : PLANS['hobby'];
     const maxTickets = currentPlan.limits.maxTicketsPerEvent;
     const canPurchase = event ? (isFinite(maxTickets) ? ((event.ticketsIssued ?? 0) < maxTickets) : true) : false;
     
-    const hasWire = !!organizer?.paymentDetails?.wireTransfer?.accountNumber;
-    const hasMomo = !!organizer?.paymentDetails?.mobileMoney?.phoneNumber;
-    const hasManualOptions = hasWire || hasMomo;
+    const hasManualOptions = organizer?.paymentDetails?.wireTransfer?.accountNumber || organizer?.paymentDetails?.mobileMoney?.phoneNumber;
 
     if (loading) {
         return <div className="flex min-h-screen items-center justify-center">Loading event details...</div>
@@ -324,7 +334,7 @@ export default function BuyTicketPage() {
     const trainingBenefit = event.benefits?.find(b => b.id === 'benefit_training');
     const optionalBenefits = event.benefits?.filter(b => b.id !== 'benefit_training') || [];
 
-    const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'manual' && (!manualPaymentType || !receiptDataUrl)) || (paymentMethod === 'online' && (!selectedProvider || !phone));
+    const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'manual' && !receiptDataUrl) || (paymentMethod === 'online' && (!selectedProvider || !phone));
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -434,7 +444,7 @@ export default function BuyTicketPage() {
                                         <RadioGroupItem value="online" id="online" className="peer sr-only" />
                                         <Label htmlFor="online" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
                                             <Smartphone className="mb-3 h-6 w-6" />
-                                            Online Payment (Mobile Money)
+                                            Mobile Money
                                         </Label>
                                     </div>
                                     {hasManualOptions && (
@@ -455,7 +465,7 @@ export default function BuyTicketPage() {
                                          {loadingProviders ? (
                                             <div className="grid grid-cols-2 gap-4"><Skeleton className="h-20" /><Skeleton className="h-20" /></div>
                                         ) : (
-                                            <RadioGroup value={selectedProvider?.provider} onValueChange={(providerId) => setSelectedProvider(providers.find(p => p.provider === providerId) || null)} className="grid grid-cols-2 gap-4">
+                                            <RadioGroup value={selectedProvider?.provider} onValueChange={handleProviderChange} className="grid grid-cols-2 gap-4">
                                                 {providers.map(p => (
                                                     <div key={p.provider}>
                                                         <RadioGroupItem value={p.provider} id={p.provider} className="peer sr-only" />
@@ -470,7 +480,7 @@ export default function BuyTicketPage() {
                                             <Label htmlFor="phone-number">Phone Number</Label>
                                             <div className="relative">
                                                 <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-muted-foreground">+{countryPrefix}</div>
-                                                <Input id="phone-number" placeholder="991234567" value={phone} onChange={(e) => setPhone(e.target.value)} className="pl-14" />
+                                                <Input id="phone-number" placeholder={phonePlaceholder} value={phone} onChange={(e) => setPhone(e.target.value)} className="pl-14" />
                                             </div>
                                         </div>
                                     </div>
@@ -479,18 +489,12 @@ export default function BuyTicketPage() {
                                      <div className="mt-6 space-y-4 animate-in fade-in">
                                          <Separator />
                                         <Alert>
-                                            <AlertTitle>Instructions for Manual Payment</AlertTitle>
+                                            <Info className="h-4 w-4" />
+                                            <AlertTitle>Next Steps</AlertTitle>
                                             <AlertDescription>
-                                                Please use the details below to complete your payment. After paying, upload your receipt/proof of payment.
+                                                After purchase, your ticket will be reserved. Payment instructions will be available on your ticket page, which you can access with a secure PIN.
                                             </AlertDescription>
                                         </Alert>
-                                        <div className="grid gap-1.5">
-                                            <Label>Select Method Used</Label>
-                                            <RadioGroup value={manualPaymentType} onValueChange={setManualPaymentType} className="flex items-center gap-4">
-                                                {hasWire && <div className="flex items-center space-x-2"><RadioGroupItem value="wire" id="wire" /><Label htmlFor="wire">Wire Transfer</Label></div>}
-                                                {hasMomo && <div className="flex items-center space-x-2"><RadioGroupItem value="momo" id="momo" /><Label htmlFor="momo">Mobile Money</Label></div>}
-                                            </RadioGroup>
-                                        </div>
                                         <div className="grid gap-1.5">
                                             <Label htmlFor="receipt">Upload Receipt / Proof of Payment</Label>
                                             <Input id="receipt" type="file" onChange={handleReceiptFileChange} accept="image/*,application/pdf" />
@@ -555,3 +559,4 @@ export default function BuyTicketPage() {
         </div>
     );
 }
+
