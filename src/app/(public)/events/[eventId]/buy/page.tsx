@@ -178,7 +178,7 @@ export default function BuyTicketPage() {
             .reduce((acc, b) => acc + (b.price || 0), 0);
     }, [event, selectedBenefits]);
 
-    const createTicketInDb = async (paymentStatus: 'pending' | 'completed', paymentMethod: 'manual' | 'online') => {
+    const createTicketInDb = async (paymentStatus: 'pending' | 'completed' | 'awaiting-confirmation', paymentMethod: 'manual' | 'online') => {
         if (!event) throw new Error("Event data not available");
 
         const latestEvent = await getEventById(event.id);
@@ -246,8 +246,8 @@ export default function BuyTicketPage() {
         setPaymentStatus('pending');
 
         try {
-            // First, optimistically create the ticket in a 'pending' state
-            const { ticketId, pin } = await createTicketInDb('pending', 'online');
+            // Optimistically create the ticket in a 'completed' state for online payments
+            const { ticketId, pin } = await createTicketInDb('completed', 'online');
             
             const result = await initiateDeposit({
                 depositIdOverride: ticketId, // Use ticket ID as deposit ID
@@ -544,7 +544,7 @@ export default function BuyTicketPage() {
                         setIsCropperOpen(false);
                         setImageToCrop(null);
                     }}
-                    imageSrc={imageSrc}
+                    imageSrc={imageToCrop}
                     onCropComplete={(croppedImageUrl) => {
                         setPhotoUrl(croppedImageUrl);
                         setIsCropperOpen(false);
