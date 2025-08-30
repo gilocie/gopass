@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -70,7 +71,7 @@ export default function EventDetailPage() {
     const defaultBanner = 'https://placehold.co/1200x400.png';
     const currentPlan = organizerProfile?.planId ? PLANS[organizerProfile.planId] : PLANS['hobby'];
     const maxTickets = currentPlan.limits.maxTicketsPerEvent;
-    const ticketsRemaining = maxTickets - event.ticketsIssued;
+    const ticketsRemaining = isFinite(maxTickets) ? maxTickets - event.ticketsIssued : Infinity;
     const ticketProgress = isFinite(maxTickets) ? (event.ticketsIssued / maxTickets) * 100 : 0;
     const canPurchase = isFinite(maxTickets) ? event.ticketsIssued < maxTickets : true;
 

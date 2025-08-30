@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Loader2, Banknote, Smartphone, Upload, CheckCircle2, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
@@ -215,7 +215,7 @@ export default function BuyTicketPage() {
             receiptUrl: '' // Receipt will be added later
         };
         
-        const createdTicketId = await addTicket(newTicket);
+        const createdTicketId = await addTicket({ ...newTicket, id: newTicket.paymentMethod === 'online' ? depositId || undefined : undefined });
         if (!createdTicketId) throw new Error("addTicket returned an invalid ID");
         
         return { ticketId: createdTicketId, pin: newPin };
@@ -245,10 +245,11 @@ export default function BuyTicketPage() {
         setPaymentStatus('pending');
 
         try {
-            const { ticketId, pin } = await createTicketInDb('completed', 'online');
-            
+            const tempDepositId = uuidv4().toUpperCase();
+            setDepositId(tempDepositId);
+
             const result = await initiateDeposit({
-                depositIdOverride: ticketId, // Use ticket ID as deposit ID
+                depositIdOverride: tempDepositId,
                 amount: totalCost.toString(),
                 currency: event.currency,
                 country: 'MWI', // Assuming MWI for now
@@ -258,7 +259,8 @@ export default function BuyTicketPage() {
             });
 
             if (result.success && result.depositId) {
-                setDepositId(result.depositId);
+                // Now that payment is initiated, create the ticket in DB
+                const { ticketId, pin } = await createTicketInDb('completed', 'online');
                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id, depositId: result.depositId }));
                 // Polling will handle the rest
             } else {
