@@ -70,11 +70,16 @@ export default function WalletPage() {
     }
   }, [user]);
   
-  const totalRevenue = tickets
-    .filter(ticket => ticket.paymentStatus === 'completed')
+  const completedTickets = tickets.filter(ticket => ticket.paymentStatus === 'completed');
+
+  const totalRevenue = completedTickets.reduce((acc, ticket) => acc + (ticket.totalPaid || 0), 0);
+  
+  const onlineRevenue = completedTickets
+    .filter(ticket => ticket.paymentMethod === 'online')
     .reduce((acc, ticket) => acc + (ticket.totalPaid || 0), 0);
+    
   const totalPaidOut = userProfile?.totalPaidOut || 0;
-  const currentBalance = totalRevenue - totalPaidOut;
+  const currentBalance = onlineRevenue - totalPaidOut;
 
   const handleWithdraw = async () => {
     if (!user) return;
@@ -242,9 +247,9 @@ export default function WalletPage() {
                                          <div className="flex items-center justify-end gap-2">
                                              {ticket.receiptUrl && (
                                                 <Button size="icon" variant="outline" asChild>
-                                                    <Link href={ticket.receiptUrl} target="_blank" rel="noopener noreferrer">
+                                                    <a href={ticket.receiptUrl} target="_blank" rel="noopener noreferrer">
                                                         <LinkIcon className="h-4 w-4" />
-                                                    </Link>
+                                                    </a>
                                                 </Button>
                                              )}
                                              <Button

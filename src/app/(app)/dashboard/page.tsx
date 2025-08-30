@@ -49,7 +49,7 @@ import { Badge } from '@/components/ui/badge';
 import { ClientLoader } from '@/components/client-loader';
 
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const { events, loading: eventsLoading } = useFirestoreEvents();
   const { toast } = useToast();
   const { format, currency } = useCurrency();
@@ -63,6 +63,8 @@ export default function DashboardPage() {
   const [filter, setFilter] = React.useState('');
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
   const [isConfirming, setIsConfirming] = React.useState<string | null>(null);
+  const [authLoading, setAuthLoading] = React.useState(true);
+
 
   React.useEffect(() => {
     if (user) {
@@ -71,8 +73,11 @@ export default function DashboardPage() {
             setUserProfile(profile);
             const orgs = await getOrganizersByUserId(user.uid);
             setUserOrganizations(orgs);
+            setAuthLoading(false);
         };
         fetchUserData();
+    } else {
+      setAuthLoading(false);
     }
   }, [user]);
 
@@ -91,6 +96,10 @@ export default function DashboardPage() {
     return acc + (ticket.totalPaid || 0);
   }, 0);
 
+  const onlineRevenue = completedTickets
+    .filter(ticket => ticket.paymentMethod === 'online')
+    .reduce((acc, ticket) => acc + (ticket.totalPaid || 0), 0);
+
   const totalTicketsSold = completedTickets.length;
   const currentPlan = userProfile?.planId ? PLANS[userProfile.planId] : PLANS['hobby'];
   const maxEvents = currentPlan.limits.maxEvents;
@@ -98,7 +107,7 @@ export default function DashboardPage() {
   const canCreateEvent = eventsCount < maxEvents;
   const totalTicketsAvailable = isFinite(maxEvents) ? maxEvents * currentPlan.limits.maxTicketsPerEvent : Infinity;
   const totalPaidOut = userProfile?.totalPaidOut || 0;
-  const currentBalance = totalRevenue - totalPaidOut;
+  const currentBalance = onlineRevenue - totalPaidOut;
 
   const stats = [
     { title: `Total Revenue (${currency.code})`, value: format(totalRevenue, currency.code !== BASE_CURRENCY_CODE), change: 'from all events', icon: <DollarSign className="h-4 w-4 text-muted-foreground" /> },

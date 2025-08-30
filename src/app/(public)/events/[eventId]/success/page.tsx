@@ -15,10 +15,9 @@ import { getTicketById } from '@/services/ticketService';
 import { getEventById } from '@/services/eventService';
 import { getOrganizerById } from '@/services/organizerService';
 import Image from 'next/image';
-import { formatEventPrice } from '@/lib/currency';
+import { formatEventPrice, currencies, BASE_CURRENCY_CODE } from '@/lib/currency';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { BASE_CURRENCY_CODE } from '@/lib/currency';
 
 export default function PurchaseSuccessPage() {
     const router = useRouter();
@@ -208,6 +207,7 @@ export default function PurchaseSuccessPage() {
                             <div className="space-y-2">
                                 {ticket.benefits.map(benefit => {
                                     const eventBenefit = event.benefits?.find(b => b.id === benefit.id);
+                                    const eventCurrency = currencies[event.currency] || currencies[BASE_CURRENCY_CODE];
                                     return (
                                         <div key={benefit.id} className="flex justify-between py-2 border-b">
                                             <span>{benefit.name}</span>
