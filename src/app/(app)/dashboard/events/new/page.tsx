@@ -110,7 +110,7 @@ export default function NewEventPage() {
         return;
     }
     
-    if (!user) {
+    if (!user || !userProfile) {
         toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in to create an event."});
         return;
     }
@@ -141,6 +141,9 @@ export default function NewEventPage() {
         });
         
         const allBenefits: EventBenefit[] = [trainingBenefit, ...customBenefits];
+        
+        const currentPlan = PLANS[userProfile.planId] || PLANS['hobby'];
+        const ticketsTotal = currentPlan.limits.maxTicketsPerEvent;
 
         const eventData: OmitIdEvent = {
             name: eventName,
@@ -155,7 +158,7 @@ export default function NewEventPage() {
             currency: isPaid ? currency : 'USD',
             status: 'draft',
             ticketsIssued: 0,
-            ticketsTotal: 1000,
+            ticketsTotal: ticketsTotal,
             organizerId: selectedOrganizerId,
             isPublished: false,
             bannerUrl: bannerUrl || '',
