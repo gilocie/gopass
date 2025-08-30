@@ -24,10 +24,9 @@ export interface PawaPayCountryConfig {
 }
 
 interface DepositPayload {
-    userId: string;
-    planId: PlanId;
+    depositIdOverride?: string; // To use ticketId as depositId
     amount: string;
-    currency: 'MWK';
+    currency: string;
     country: 'MWI';
     correspondent: string; // This is the provider ID like 'AIRTEL_MWI'
     customerPhone: string; // The full MSISDN e.g., 265...
@@ -100,7 +99,7 @@ export const initiateDeposit = async (payload: DepositPayload): Promise<{ succes
     }
 
     try {
-        const depositId = uuidv4().toUpperCase();
+        const depositId = payload.depositIdOverride || uuidv4().toUpperCase();
         const formattedAmount = parseFloat(payload.amount).toFixed(2);
         const customerTimestamp = new Date().toISOString();
 
@@ -118,16 +117,6 @@ export const initiateDeposit = async (payload: DepositPayload): Promise<{ succes
             },
             customerTimestamp,
             statementDescription: payload.statementDescription,
-            metadata: [
-                {
-                    fieldName: "userId",
-                    fieldValue: payload.userId
-                },
-                {
-                    fieldName: "planId",
-                    fieldValue: payload.planId
-                }
-            ]
         };
         
         const depositApiResponse = await fetch(`${PAWAPAY_BASE_URL}/deposits`, {

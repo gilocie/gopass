@@ -26,6 +26,19 @@ const toDate = (timestamp: Timestamp | Date | undefined): Date | undefined => {
 export const addTicket = async (ticket: OmitIdTicket): Promise<string> => {
     try {
         const ticketWithTimestamp = { ...ticket, createdAt: serverTimestamp() };
+        // If an ID is passed in the ticket object (for online payments), use it
+        if ('id' in ticket && ticket.id) {
+            const ticketDocRef = doc(db, 'tickets', ticket.id);
+            await setDoc(ticketDocRef, stripUndefined(ticketWithTimestamp));
+             if (ticket.paymentStatus === 'completed') {
+                const eventDocRef = doc(db, 'events', ticket.eventId);
+                await updateDoc(eventDocRef, {
+                    ticketsIssued: increment(1)
+                });
+            }
+            return ticket.id;
+        }
+
         const docRef = await addDoc(ticketsCollection, stripUndefined(ticketWithTimestamp));
         
         // Increment the ticketsIssued count on the event if payment is already completed (e.g., organizer-created tickets)

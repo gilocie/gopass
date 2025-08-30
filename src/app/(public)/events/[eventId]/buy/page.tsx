@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getEventById } from '@/services/eventService';
-import { addTicket } from '@/services/ticketService';
+import { addTicket, markTicketAsPaid } from '@/services/ticketService';
 import type { Event, OmitIdTicket, Benefit, EventBenefit, UserProfile, Organizer } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -15,16 +15,19 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Loader2, Banknote, Smartphone } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, Smartphone, Upload, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
-import { formatEventPrice, currencies } from '@/lib/currency';
+import { formatCurrency, currencies, BASE_CURRENCY_CODE } from '@/lib/currency';
 import { getUserProfile } from '@/services/userService';
 import { PLANS } from '@/lib/plans';
 import { getOrganizerById } from '@/services/organizerService';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import { getCountryConfig, initiateDeposit, checkDepositStatus, PawaPayProvider } from '@/services/pawaPayService';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 export default function BuyTicketPage() {
@@ -45,12 +48,40 @@ export default function BuyTicketPage() {
     const [phone, setPhone] = React.useState('');
     const [photoUrl, setPhotoUrl] = React.useState('');
     const [selectedBenefits, setSelectedBenefits] = React.useState<string[]>([]);
-    const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('manual');
+    const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('online');
     const [manualPaymentType, setManualPaymentType] = React.useState('');
+    const [receiptDataUrl, setReceiptDataUrl] = React.useState<string | null>(null);
 
+    // Online Payment State
+    const [paymentStatus, setPaymentStatus] = React.useState<'idle' | 'pending' | 'success' | 'failed'>('idle');
+    const [depositId, setDepositId] = React.useState<string | null>(null);
+    const [providers, setProviders] = React.useState<PawaPayProvider[]>([]);
+    const [loadingProviders, setLoadingProviders] = React.useState(true);
+    const [selectedProvider, setSelectedProvider] = React.useState<PawaPayProvider | null>(null);
+    const [countryPrefix, setCountryPrefix] = React.useState('');
+    
     // Cropper State
     const [imageToCrop, setImageToCrop] = React.useState<string | null>(null);
     const [isCropperOpen, setIsCropperOpen] = React.useState(false);
+
+     React.useEffect(() => {
+        const fetchProviders = async () => {
+            setLoadingProviders(true);
+            try {
+                // Assuming MWI for now, this could be dynamic in a future version
+                const config = await getCountryConfig('MWI');
+                if (config) {
+                    setProviders(config.providers.filter(p => p.status === 'OPERATIONAL'));
+                    setCountryPrefix(config.prefix);
+                }
+            } catch (error) {
+                 toast({ variant: 'destructive', title: 'Error', description: 'Could not load payment providers.' });
+            } finally {
+                setLoadingProviders(false);
+            }
+        }
+        fetchProviders();
+    }, [toast]);
 
     React.useEffect(() => {
         const fetchEventData = async () => {
@@ -84,6 +115,40 @@ export default function BuyTicketPage() {
         };
         fetchEventData();
     }, [eventId, router, toast]);
+    
+      // --- Polling Logic for Online Payments ---
+    React.useEffect(() => {
+        if (paymentStatus !== 'pending' || !depositId || !event) {
+            return;
+        }
+
+        const interval = setInterval(async () => {
+            try {
+                const { status } = await checkDepositStatus(depositId);
+                if (status === 'COMPLETED') {
+                    setPaymentStatus('success');
+                    toast({ title: 'Success!', description: `Your ticket for ${event.name} is confirmed.` });
+                    clearInterval(interval);
+                     // The ticket has already been created, we just need to redirect
+                    setTimeout(() => {
+                        const lastPurchase = JSON.parse(sessionStorage.getItem('lastPurchaseDetails') || '{}');
+                        if (lastPurchase.depositId === depositId) {
+                             router.push(`/events/${event.id}/success`);
+                        }
+                    }, 2000);
+                } else if (status === 'FAILED' || status === 'REJECTED') {
+                    setPaymentStatus('failed');
+                    toast({ variant: 'destructive', title: 'Payment Failed', description: 'Your transaction could not be completed.' });
+                    clearInterval(interval);
+                    setIsPurchasing(false);
+                }
+            } catch (error) {
+                console.error("Polling error:", error);
+            }
+        }, 5000); // Poll every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [paymentStatus, depositId, router, toast, event]);
 
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -113,95 +178,132 @@ export default function BuyTicketPage() {
             .reduce((acc, b) => acc + (b.price || 0), 0);
     }, [event, selectedBenefits]);
 
-    const handlePurchase = async () => {
-        if (!event) return;
+    const createTicketInDb = async (paymentStatus: 'pending' | 'completed', paymentMethod: 'manual' | 'online') => {
+        if (!event) throw new Error("Event data not available");
 
-        if (!fullName.trim() || !email.trim()) {
+        const latestEvent = await getEventById(event.id);
+        if (!latestEvent) throw new Error('Event not found while purchasing');
+        
+        const organizerId = latestEvent.organizerId || 'default';
+        const latestOrganizer = await getUserProfile(organizerId);
+
+        const latestPlan = latestOrganizer?.planId ? PLANS[latestOrganizer.planId] : PLANS['hobby'];
+        const latestMax = latestPlan.limits.maxTicketsPerEvent;
+
+        if (isFinite(latestMax) && (latestEvent.ticketsIssued ?? 0) >= latestMax) {
+            throw new Error('Event is full. No more tickets available.');
+        }
+
+        const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+        const benefitsForTicket: Benefit[] = (event.benefits || [])
+            .filter(b => selectedBenefits.includes(b.id))
+            .map((b: EventBenefit) => ({
+                id: b.id, name: b.name, used: false,
+                startTime: b.startTime ?? '', endTime: b.endTime ?? '',
+                days: Array.isArray(b.days) && b.days.length ? b.days : [1],
+            }));
+        
+        const bgPct = event.ticketTemplate?.backgroundOpacity;
+        const backgroundImageOpacity = typeof bgPct === 'number' ? Math.max(0, Math.min(1, bgPct / 100)) : 0.1;
+            
+        const newTicket: OmitIdTicket = {
+            eventId: event.id, holderName: fullName, holderEmail: email, holderPhone: phone || '',
+            holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`, pin: newPin,
+            ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+            benefits: benefitsForTicket, status: 'active', holderTitle: '',
+            backgroundImageUrl: event.ticketTemplate?.backgroundImageUrl || '',
+            backgroundImageOpacity, totalPaid: totalCost, paymentMethod, paymentStatus,
+            receiptUrl: receiptDataUrl || ''
+        };
+        
+        const createdTicketId = await addTicket(newTicket);
+        if (!createdTicketId) throw new Error("addTicket returned an invalid ID");
+        
+        return { ticketId: createdTicketId, pin: newPin };
+    }
+
+    const handlePurchase = async () => {
+        if (!event || !fullName.trim() || !email.trim()) {
             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please provide your full name and email.' });
             return;
         }
-
-        const simpleEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!simpleEmail.test(email.trim())) {
-            toast({ variant: 'destructive', title: 'Invalid Email', description: 'Please enter a valid email address.' });
-            return;
-        }
-        
-        if (paymentMethod === 'manual' && !manualPaymentType) {
-             toast({ variant: 'destructive', title: 'Payment Method Required', description: 'Please select a manual payment method.' });
-            return;
-        }
-        
-        const trainingBenefit = event.benefits?.find(b => b.id === 'benefit_training');
-        if (trainingBenefit && !selectedBenefits.includes(trainingBenefit.id)) {
-            setSelectedBenefits(prev => Array.from(new Set([...prev, trainingBenefit.id])));
-        }
-
         setIsPurchasing(true);
 
-        try {
-            const latestEvent = await getEventById(event.id);
-            if (!latestEvent) throw new Error('Event not found while purchasing');
-            
-            const organizerId = latestEvent.organizerId || 'default'; // Using a fallback, adjust as necessary
-            const latestOrganizer = await getUserProfile(organizerId);
-
-            const latestPlan = latestOrganizer?.planId ? PLANS[latestOrganizer.planId] : PLANS['hobby'];
-            const latestMax = latestPlan.limits.maxTicketsPerEvent;
-
-            if (isFinite(latestMax) && (latestEvent.ticketsIssued ?? 0) >= latestMax) {
-                toast({ variant: 'destructive', title: 'Event Full', description: 'No more tickets available.' });
-                setIsPurchasing(false);
-                return;
-            }
-
-            const newPin = Math.floor(100000 + Math.random() * 900000).toString();
-            
-            const benefitsForTicket: Benefit[] = (event.benefits || [])
-                .filter(b => selectedBenefits.includes(b.id))
-                .map((b: EventBenefit) => ({
-                    id: b.id,
-                    name: b.name,
-                    used: false,
-                    startTime: b.startTime ?? '',
-                    endTime: b.endTime ?? '',
-                    days: Array.isArray(b.days) && b.days.length ? b.days : [1],
-                }));
-            
-            const bgPct = event.ticketTemplate?.backgroundOpacity;
-            const backgroundImageOpacity = typeof bgPct === 'number'
-              ? Math.max(0, Math.min(1, bgPct / 100))
-              : 0.1;
-                
-            const newTicket: OmitIdTicket = {
-                eventId: event.id,
-                holderName: fullName,
-                holderEmail: email,
-                holderPhone: phone || '',
-                holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
-                pin: newPin,
-                ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-                benefits: benefitsForTicket,
-                status: 'active', // Status is active, but paymentStatus controls access
-                holderTitle: '',
-                backgroundImageUrl: event.ticketTemplate?.backgroundImageUrl || '',
-                backgroundImageOpacity,
-                totalPaid: totalCost,
-                paymentMethod,
-                paymentStatus: paymentMethod === 'manual' ? 'pending' : 'completed',
-            };
-            
-            const createdTicketId = await addTicket(newTicket);
-
-            sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId: createdTicketId, pin: newPin, eventId: event.id }));
-            router.push(`/events/${event.id}/success`);
-
-        } catch (error) {
-            console.error('[Purchase] addTicket error:', error);
-            toast({ variant: 'destructive', title: 'Purchase Failed', description: 'Could not create your ticket. Please try again.' });
-            setIsPurchasing(false);
+        if (paymentMethod === 'online') {
+            await handleOnlinePayment();
+        } else {
+            await handleManualPayment();
         }
     };
+
+    const handleOnlinePayment = async () => {
+        if (!event || !selectedProvider || !phone) {
+            toast({ variant: 'destructive', title: 'Missing Details', description: 'Please select a provider and enter your phone number.' });
+            setIsPurchasing(false);
+            return;
+        }
+
+        setPaymentStatus('pending');
+
+        try {
+            // First, optimistically create the ticket in a 'pending' state
+            const { ticketId, pin } = await createTicketInDb('pending', 'online');
+            
+            const result = await initiateDeposit({
+                depositIdOverride: ticketId, // Use ticket ID as deposit ID
+                amount: totalCost.toString(),
+                currency: event.currency,
+                country: 'MWI', // Assuming MWI for now
+                correspondent: selectedProvider.provider,
+                customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
+                statementDescription: `Ticket for ${event.name}`.substring(0, 25),
+            });
+
+            if (result.success && result.depositId) {
+                setDepositId(result.depositId);
+                sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id, depositId: result.depositId }));
+                // Polling will handle the rest
+            } else {
+                setPaymentStatus('failed');
+                toast({ variant: 'destructive', title: 'Payment Failed', description: result.message });
+                setIsPurchasing(false);
+            }
+        } catch (error: any) {
+            setPaymentStatus('failed');
+            toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message || 'Could not create your ticket.' });
+            setIsPurchasing(false);
+        }
+    }
+
+    const handleManualPayment = async () => {
+        if (!manualPaymentType || !receiptDataUrl) {
+            toast({ variant: 'destructive', title: 'Details Required', description: 'Please select a payment type and upload your receipt.' });
+            setIsPurchasing(false);
+            return;
+        }
+        try {
+            const { ticketId, pin } = await createTicketInDb('awaiting-confirmation', 'manual');
+            sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id }));
+            router.push(`/events/${event.id}/success`);
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message });
+            setIsPurchasing(false);
+        }
+    }
+    
+     const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setReceiptDataUrl(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            setReceiptDataUrl(null);
+        }
+    };
+
 
     const currentPlan = organizerProfile?.planId ? PLANS[organizerProfile.planId] : PLANS['hobby'];
     const maxTickets = currentPlan.limits.maxTicketsPerEvent;
@@ -222,6 +324,8 @@ export default function BuyTicketPage() {
     const trainingBenefit = event.benefits?.find(b => b.id === 'benefit_training');
     const optionalBenefits = event.benefits?.filter(b => b.id !== 'benefit_training') || [];
 
+    const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'manual' && (!manualPaymentType || !receiptDataUrl)) || (paymentMethod === 'online' && (!selectedProvider || !phone));
+
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <Button variant="outline" size="sm" onClick={() => router.back()} className="mb-4">
@@ -229,106 +333,173 @@ export default function BuyTicketPage() {
             </Button>
             <div className="grid lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Secure Your Spot for {event.name}</CardTitle>
-                            <CardDescription>Fill in the ticket holder's details below.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="flex items-center gap-4">
-                                <Avatar className="h-24 w-24">
-                                    <AvatarImage src={photoUrl} alt={fullName} />
-                                    <AvatarFallback>{fullName ? fullName.split(' ').map(n => n[0]).join('') : '?'}</AvatarFallback>
-                                </Avatar>
-                                <div className="grid gap-1.5 flex-grow">
-                                    <Label htmlFor="photo">Ticket Holder's Photo</Label>
-                                    <Input id="photo" type="file" onChange={handlePhotoChange} accept="image/*" />
-                                </div>
-                            </div>
-                            <div className="grid sm:grid-cols-2 gap-4">
-                                <div className="grid gap-1.5">
-                                    <Label htmlFor="full-name">Full Name</Label>
-                                    <Input id="full-name" placeholder="John Doe" value={fullName} onChange={e => setFullName(e.target.value)} />
-                                </div>
-                                <div className="grid gap-1.5">
-                                    <Label htmlFor="email">Email Address</Label>
-                                    <Input id="email" type="email" placeholder="john.doe@example.com" value={email} onChange={e => setEmail(e.target.value)} />
-                                </div>
-                                <div className="grid gap-1.5 sm:col-span-2">
-                                    <Label htmlFor="phone">Phone Number (Optional)</Label>
-                                    <Input id="phone" type="tel" placeholder="+1 (555) 123-4567" value={phone} onChange={e => setPhone(e.target.value)} />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Event Benefits</CardTitle>
-                            <CardDescription>Select optional add-ons to enhance your experience.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                            {trainingBenefit && (
-                                <div className="flex items-center space-x-3 p-3 rounded-md border bg-secondary/50">
-                                    <Checkbox id={trainingBenefit.id} checked={true} disabled />
-                                    <div className="grid gap-1.5 leading-none flex-1">
-                                        <label htmlFor={trainingBenefit.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                        {trainingBenefit.name}
-                                        </label>
-                                        <p className="text-xs text-muted-foreground">
-                                           Primary event access.
-                                        </p>
+                    {paymentStatus === 'pending' ? (
+                         <Card>
+                            <CardContent className="text-center p-8 flex flex-col items-center gap-4">
+                                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                                <h3 className="font-semibold text-lg">Awaiting Confirmation</h3>
+                                <p className="text-muted-foreground text-sm">
+                                    Please check your phone and enter your PIN to approve the payment of {formatCurrency(totalCost, currencies[event.currency])}.
+                                </p>
+                                <Button variant="outline" onClick={() => { setPaymentStatus('idle'); setIsPurchasing(false); }}>Cancel</Button>
+                            </CardContent>
+                        </Card>
+                    ) : paymentStatus === 'success' ? (
+                        <Card>
+                            <CardContent className="text-center py-8 flex flex-col items-center gap-4">
+                                <CheckCircle2 className="h-12 w-12 text-green-500" />
+                                <h3 className="font-semibold text-lg">Payment Confirmed!</h3>
+                                <p className="text-muted-foreground text-sm">
+                                    Redirecting you to your ticket...
+                                </p>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                    <>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Secure Your Spot for {event.name}</CardTitle>
+                                <CardDescription>Fill in the ticket holder's details below.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="flex items-center gap-4">
+                                    <Avatar className="h-24 w-24">
+                                        <AvatarImage src={photoUrl} alt={fullName} />
+                                        <AvatarFallback>{fullName ? fullName.split(' ').map(n => n[0]).join('') : '?'}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="grid gap-1.5 flex-grow">
+                                        <Label htmlFor="photo">Ticket Holder's Photo</Label>
+                                        <Input id="photo" type="file" onChange={handlePhotoChange} accept="image/*" />
                                     </div>
-                                    <span className="font-semibold">{formatEventPrice({ price: trainingBenefit.price, currency: event.currency })}</span>
                                 </div>
-                            )}
-                            {optionalBenefits.map(benefit => (
-                                <div key={benefit.id} className="flex items-center space-x-3 p-3 rounded-md border">
-                                    <Checkbox id={benefit.id} onCheckedChange={() => handleBenefitChange(benefit.id)} checked={selectedBenefits.includes(benefit.id)} />
-                                    <div className="grid gap-1.5 leading-none flex-1">
-                                        <label htmlFor={benefit.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                        {benefit.name}
-                                        </label>
-                                        <p className="text-xs text-muted-foreground">
-                                            Available on Day(s): {benefit.days.join(', ')}
-                                            {benefit.startTime && benefit.endTime ? ` from ${benefit.startTime} to ${benefit.endTime}` : ''}.
-                                        </p>
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <div className="grid gap-1.5">
+                                        <Label htmlFor="full-name">Full Name</Label>
+                                        <Input id="full-name" placeholder="John Doe" value={fullName} onChange={e => setFullName(e.target.value)} />
                                     </div>
-                                    <span className="font-semibold">{formatEventPrice({ price: benefit.price, currency: event.currency })}</span>
+                                    <div className="grid gap-1.5">
+                                        <Label htmlFor="email">Email Address</Label>
+                                        <Input id="email" type="email" placeholder="john.doe@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+                                    </div>
                                 </div>
-                            ))}
-                        </CardContent>
-                    </Card>
-                    
-                     {hasManualOptions && (
+                            </CardContent>
+                        </Card>
+                        
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Event Benefits</CardTitle>
+                                <CardDescription>Select optional add-ons to enhance your experience.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                {trainingBenefit && (
+                                    <div className="flex items-center space-x-3 p-3 rounded-md border bg-secondary/50">
+                                        <Checkbox id={trainingBenefit.id} checked={true} disabled />
+                                        <div className="grid gap-1.5 leading-none flex-1">
+                                            <label htmlFor={trainingBenefit.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                            {trainingBenefit.name}
+                                            </label>
+                                            <p className="text-xs text-muted-foreground">
+                                            Primary event access.
+                                            </p>
+                                        </div>
+                                        <span className="font-semibold">{formatCurrency(trainingBenefit.price, currencies[event.currency])}</span>
+                                    </div>
+                                )}
+                                {optionalBenefits.map(benefit => (
+                                    <div key={benefit.id} className="flex items-center space-x-3 p-3 rounded-md border">
+                                        <Checkbox id={benefit.id} onCheckedChange={() => handleBenefitChange(benefit.id)} checked={selectedBenefits.includes(benefit.id)} />
+                                        <div className="grid gap-1.5 leading-none flex-1">
+                                            <label htmlFor={benefit.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                            {benefit.name}
+                                            </label>
+                                            <p className="text-xs text-muted-foreground">
+                                                Available on Day(s): {benefit.days.join(', ')}
+                                                {benefit.startTime && benefit.endTime ? ` from ${benefit.startTime} to ${benefit.endTime}` : ''}.
+                                            </p>
+                                        </div>
+                                        <span className="font-semibold">{formatCurrency(benefit.price, currencies[event.currency])}</span>
+                                    </div>
+                                ))}
+                            </CardContent>
+                        </Card>
+                        
                         <Card>
                             <CardHeader>
                                 <CardTitle>Payment Method</CardTitle>
                                 <CardDescription>Select how you'd like to pay.</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <RadioGroup value={manualPaymentType} onValueChange={setManualPaymentType} className="grid sm:grid-cols-2 gap-4">
-                                     {hasWire && (
+                                <RadioGroup value={paymentMethod} onValueChange={(val) => setPaymentMethod(val as 'online' | 'manual')} className="grid sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <RadioGroupItem value="online" id="online" className="peer sr-only" />
+                                        <Label htmlFor="online" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
+                                            <Smartphone className="mb-3 h-6 w-6" />
+                                            Online Payment (Mobile Money)
+                                        </Label>
+                                    </div>
+                                    {hasManualOptions && (
                                         <div>
-                                            <RadioGroupItem value="wire" id="wire" className="peer sr-only" />
-                                            <Label htmlFor="wire" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
+                                            <RadioGroupItem value="manual" id="manual" className="peer sr-only" disabled={!hasManualOptions} />
+                                            <Label htmlFor="manual" className={cn("flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary", hasManualOptions ? 'cursor-pointer' : 'cursor-not-allowed opacity-50')}>
                                                 <Banknote className="mb-3 h-6 w-6" />
-                                                Wire Transfer
-                                            </Label>
-                                        </div>
-                                    )}
-                                    {hasMomo && (
-                                        <div>
-                                            <RadioGroupItem value="momo" id="momo" className="peer sr-only" />
-                                            <Label htmlFor="momo" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
-                                                <Smartphone className="mb-3 h-6 w-6" />
-                                                Mobile Money
+                                                Manual Payment
                                             </Label>
                                         </div>
                                     )}
                                 </RadioGroup>
+
+                                {paymentMethod === 'online' && (
+                                    <div className="mt-6 space-y-4 animate-in fade-in">
+                                        <Separator />
+                                        <Label>Select Mobile Money Provider</Label>
+                                         {loadingProviders ? (
+                                            <div className="grid grid-cols-2 gap-4"><Skeleton className="h-20" /><Skeleton className="h-20" /></div>
+                                        ) : (
+                                            <RadioGroup value={selectedProvider?.provider} onValueChange={(providerId) => setSelectedProvider(providers.find(p => p.provider === providerId) || null)} className="grid grid-cols-2 gap-4">
+                                                {providers.map(p => (
+                                                    <div key={p.provider}>
+                                                        <RadioGroupItem value={p.provider} id={p.provider} className="peer sr-only" />
+                                                        <Label htmlFor={p.provider} className="flex items-center justify-center rounded-md border-2 border-muted bg-muted/20 hover:border-primary peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary transition-colors cursor-pointer h-16 p-2 overflow-hidden">
+                                                            <div className="relative w-full h-full"><Image src={p.logo} alt={p.displayName} fill style={{ objectFit: 'contain' }} /></div>
+                                                        </Label>
+                                                    </div>
+                                                ))}
+                                            </RadioGroup>
+                                        )}
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="phone-number">Phone Number</Label>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-muted-foreground">+{countryPrefix}</div>
+                                                <Input id="phone-number" placeholder="991234567" value={phone} onChange={(e) => setPhone(e.target.value)} className="pl-14" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {paymentMethod === 'manual' && hasManualOptions && (
+                                     <div className="mt-6 space-y-4 animate-in fade-in">
+                                         <Separator />
+                                        <Alert>
+                                            <AlertTitle>Instructions for Manual Payment</AlertTitle>
+                                            <AlertDescription>
+                                                Please use the details below to complete your payment. After paying, upload your receipt/proof of payment.
+                                            </AlertDescription>
+                                        </Alert>
+                                        <div className="grid gap-1.5">
+                                            <Label>Select Method Used</Label>
+                                            <RadioGroup value={manualPaymentType} onValueChange={setManualPaymentType} className="flex items-center gap-4">
+                                                {hasWire && <div className="flex items-center space-x-2"><RadioGroupItem value="wire" id="wire" /><Label htmlFor="wire">Wire Transfer</Label></div>}
+                                                {hasMomo && <div className="flex items-center space-x-2"><RadioGroupItem value="momo" id="momo" /><Label htmlFor="momo">Mobile Money</Label></div>}
+                                            </RadioGroup>
+                                        </div>
+                                        <div className="grid gap-1.5">
+                                            <Label htmlFor="receipt">Upload Receipt / Proof of Payment</Label>
+                                            <Input id="receipt" type="file" onChange={handleReceiptFileChange} accept="image/*,application/pdf" />
+                                        </div>
+                                     </div>
+                                )}
                             </CardContent>
                         </Card>
+                    </>
                     )}
                 </div>
                 <div className="lg:col-span-1">
@@ -347,18 +518,18 @@ export default function BuyTicketPage() {
                                 {event.benefits?.filter(b => selectedBenefits.includes(b.id)).map(b => (
                                      <div key={b.id} className="flex justify-between">
                                         <span>{b.name}:</span>
-                                        <span>{formatEventPrice({ price: b.price, currency: event.currency })}</span>
+                                        <span>{formatCurrency(b.price, currencies[event.currency])}</span>
                                     </div>
                                 ))}
                             </div>
                             <Separator />
                              <div className="flex justify-between font-bold text-lg">
                                 <span>Total:</span>
-                                <span>{formatEventPrice({ price: totalCost, currency: event.currency })}</span>
+                                <span>{formatCurrency(totalCost, currencies[event.currency])}</span>
                             </div>
                         </CardContent>
                         <CardContent>
-                             <Button size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" onClick={handlePurchase} disabled={isPurchasing || !canPurchase}>
+                             <Button size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" onClick={handlePurchase} disabled={isPurchaseDisabled}>
                                 {isPurchasing ? <Loader2 className="mr-2 animate-spin" /> : null}
                                 {isPurchasing ? 'Processing...' : !canPurchase ? 'Event Full' : 'Confirm Purchase'}
                             </Button>
@@ -373,7 +544,7 @@ export default function BuyTicketPage() {
                         setIsCropperOpen(false);
                         setImageToCrop(null);
                     }}
-                    imageSrc={imageToCrop}
+                    imageSrc={imageSrc}
                     onCropComplete={(croppedImageUrl) => {
                         setPhotoUrl(croppedImageUrl);
                         setIsCropperOpen(false);
