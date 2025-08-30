@@ -3,7 +3,7 @@
 'use client';
 import * as React from 'react';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, DocumentData, doc, updateDoc, increment, getDocs, getDoc, deleteDoc, orderBy, limit, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, DocumentData, doc, updateDoc, increment, getDocs, getDoc, deleteDoc, orderBy, limit, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
 import type { OmitIdTicket, Ticket } from '@/lib/types';
 import { stripUndefined } from '@/lib/utils';
 
@@ -23,9 +23,10 @@ const toDate = (timestamp: Timestamp | Date | undefined): Date | undefined => {
 
 
 // Create a new ticket
-export const addTicket = async (ticket: OmitIdTicket): Promise<string> => {
+export const addTicket = async (ticket: OmitIdTicket & {id?: string}): Promise<string> => {
     try {
         const ticketWithTimestamp = { ...ticket, createdAt: serverTimestamp() };
+        
         // If an ID is passed in the ticket object (for online payments), use it
         if ('id' in ticket && ticket.id) {
             const ticketDocRef = doc(db, 'tickets', ticket.id);

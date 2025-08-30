@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getEventById } from '@/services/eventService';
-import { addTicket, markTicketAsPaid } from '@/services/ticketService';
+import { addTicket } from '@/services/ticketService';
 import type { Event, OmitIdTicket, Benefit, EventBenefit, UserProfile, Organizer } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -49,8 +49,6 @@ export default function BuyTicketPage() {
     const [photoUrl, setPhotoUrl] = React.useState('');
     const [selectedBenefits, setSelectedBenefits] = React.useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('online');
-    const [manualPaymentType, setManualPaymentType] = React.useState('');
-    const [receiptDataUrl, setReceiptDataUrl] = React.useState<string | null>(null);
     const [phonePlaceholder, setPhonePlaceholder] = React.useState('991234567');
 
     // Online Payment State
@@ -214,7 +212,7 @@ export default function BuyTicketPage() {
             benefits: benefitsForTicket, status: 'active', holderTitle: '',
             backgroundImageUrl: event.ticketTemplate?.backgroundImageUrl || '',
             backgroundImageOpacity, totalPaid: totalCost, paymentMethod, paymentStatus,
-            receiptUrl: receiptDataUrl || ''
+            receiptUrl: '' // Receipt will be added later
         };
         
         const createdTicketId = await addTicket(newTicket);
@@ -276,13 +274,8 @@ export default function BuyTicketPage() {
     }
 
     const handleManualPayment = async () => {
-        if (!receiptDataUrl) {
-            toast({ variant: 'destructive', title: 'Details Required', description: 'Please upload your receipt.' });
-            setIsPurchasing(false);
-            return;
-        }
         try {
-            const { ticketId, pin } = await createTicketInDb('awaiting-confirmation', 'manual');
+            const { ticketId, pin } = await createTicketInDb('pending', 'manual');
             sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id }));
             router.push(`/events/${event.id}/success`);
         } catch (error: any) {
@@ -290,19 +283,6 @@ export default function BuyTicketPage() {
             setIsPurchasing(false);
         }
     }
-    
-     const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setReceiptDataUrl(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        } else {
-            setReceiptDataUrl(null);
-        }
-    };
     
     const handleProviderChange = (providerId: string) => {
         const provider = providers.find(p => p.provider === providerId) || null;
@@ -334,7 +314,7 @@ export default function BuyTicketPage() {
     const trainingBenefit = event.benefits?.find(b => b.id === 'benefit_training');
     const optionalBenefits = event.benefits?.filter(b => b.id !== 'benefit_training') || [];
 
-    const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'manual' && !receiptDataUrl) || (paymentMethod === 'online' && (!selectedProvider || !phone));
+    const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'online' && (!selectedProvider || !phone));
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -495,10 +475,6 @@ export default function BuyTicketPage() {
                                                 After purchase, your ticket will be reserved. Payment instructions will be available on your ticket page, which you can access with a secure PIN.
                                             </AlertDescription>
                                         </Alert>
-                                        <div className="grid gap-1.5">
-                                            <Label htmlFor="receipt">Upload Receipt / Proof of Payment</Label>
-                                            <Input id="receipt" type="file" onChange={handleReceiptFileChange} accept="image/*,application/pdf" />
-                                        </div>
                                      </div>
                                 )}
                             </CardContent>
