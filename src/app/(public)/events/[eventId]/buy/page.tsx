@@ -122,18 +122,21 @@ export default function BuyTicketPage() {
 
         const interval = setInterval(async () => {
             try {
-                const { status } = await checkDepositStatus(depositId);
+                const { status, deposit } = await checkDepositStatus(depositId);
                 
                 if (status === 'COMPLETED') {
                     setPaymentStatus('success');
                     clearInterval(interval);
                     
-                    // Payment is confirmed, now we create the ticket.
-                    const { ticketId, pin } = await createTicketInDb('completed', 'online', depositId);
-                    
+                    const ticketId = deposit?.metadata?.ticketId;
+                    const pin = deposit?.metadata?.pin;
+
+                    if (!ticketId || !pin) {
+                        throw new Error("Ticket details not found in payment response.");
+                    }
+
                     toast({ title: 'Success!', description: `Your ticket for ${event.name} is confirmed.` });
-                    
-                    sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id, depositId }));
+                    sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id }));
                     setTimeout(() => router.push(`/events/${event.id}/success`), 2000);
 
                 } else if (status === 'FAILED' || status === 'REJECTED') {
@@ -182,51 +185,6 @@ export default function BuyTicketPage() {
             .reduce((acc, b) => acc + (b.price || 0), 0);
     }, [event, selectedBenefits]);
 
-    const createTicketInDb = async (paymentStatus: 'completed' | 'awaiting-confirmation', paymentMethod: 'manual' | 'online', depositId?: string) => {
-        if (!event) throw new Error("Event data not available");
-
-        const latestEvent = await getEventById(event.id);
-        if (!latestEvent) throw new Error('Event not found while purchasing');
-        
-        const organizerId = latestEvent.organizerId;
-        if (!organizerId) throw new Error("Event is missing an organizer.");
-
-        const latestOrganizer = await getUserProfile(organizerId);
-        const latestPlan = latestOrganizer?.planId ? PLANS[latestOrganizer.planId] : PLANS['hobby'];
-        const latestMax = latestEvent.ticketsTotal ?? latestPlan.limits.maxTicketsPerEvent;
-
-        if (isFinite(latestMax) && (latestEvent.ticketsIssued ?? 0) >= latestMax) {
-            throw new Error('Event is full. No more tickets available.');
-        }
-
-        const newPin = Math.floor(100000 + Math.random() * 900000).toString();
-        const benefitsForTicket: Benefit[] = (event.benefits || [])
-            .filter(b => selectedBenefits.includes(b.id))
-            .map((b: EventBenefit) => ({
-                id: b.id, name: b.name, used: false,
-                startTime: b.startTime ?? '', endTime: b.endTime ?? '',
-                days: Array.isArray(b.days) && b.days.length ? b.days : [1],
-            }));
-        
-        const bgPct = event.ticketTemplate?.backgroundOpacity;
-        const backgroundImageOpacity = typeof bgPct === 'number' ? Math.max(0, Math.min(1, bgPct / 100)) : 0.1;
-            
-        const newTicket: OmitIdTicket = {
-            eventId: event.id, holderName: fullName, holderEmail: email, holderPhone: phone || '',
-            holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`, pin: newPin,
-            ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-            benefits: benefitsForTicket, status: 'active', holderTitle: '',
-            backgroundImageUrl: event.ticketTemplate?.backgroundImageUrl || '',
-            backgroundImageOpacity, totalPaid: totalCost, paymentMethod, paymentStatus
-        };
-        
-        const ticketIdToUse = depositId || undefined;
-        const createdTicketId = await addTicket({ ...newTicket, id: ticketIdToUse });
-        if (!createdTicketId) throw new Error("addTicket returned an invalid ID");
-        
-        return { ticketId: createdTicketId, pin: newPin };
-    }
-
     const handlePurchase = async () => {
         if (!event || !fullName.trim() || !email.trim()) {
             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please provide your full name and email.' });
@@ -248,30 +206,68 @@ export default function BuyTicketPage() {
             return;
         }
 
+        const latestEvent = await getEventById(event.id);
+        if (!latestEvent) {
+             toast({ variant: 'destructive', title: 'Purchase Failed', description: 'Event not found.' });
+             setIsPurchasing(false);
+             return;
+        }
+        const organizerId = latestEvent.organizerId;
+        if (!organizerId) {
+             toast({ variant: 'destructive', title: 'Purchase Failed', description: 'Event is missing an organizer.' });
+             setIsPurchasing(false);
+             return;
+        }
+        const latestOrganizer = await getUserProfile(organizerId);
+        const latestPlan = latestOrganizer?.planId ? PLANS[latestOrganizer.planId] : PLANS['hobby'];
+        const latestMax = latestEvent.ticketsTotal ?? latestPlan.limits.maxTicketsPerEvent;
+        if (isFinite(latestMax) && (latestEvent.ticketsIssued ?? 0) >= latestMax) {
+            toast({ variant: 'destructive', title: 'Event is Full', description: 'No more tickets available.' });
+            setIsPurchasing(false);
+            return;
+        }
+
         setPaymentStatus('pending');
 
         try {
-            const tempDepositId = uuidv4().toUpperCase();
+            const tempTicketId = uuidv4().toUpperCase();
+            const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+            const benefitsForTicket: Benefit[] = (event.benefits || [])
+                .filter(b => selectedBenefits.includes(b.id))
+                .map((b: EventBenefit) => ({
+                    id: b.id, name: b.name, used: false,
+                    startTime: b.startTime ?? '', endTime: b.endTime ?? '',
+                    days: Array.isArray(b.days) && b.days.length ? b.days : [1],
+                }));
 
-            // If event currency is MWK, use totalCost directly.
-            const amountInLocalCurrency = event.currency === 'MWK' ? totalCost : totalCost; // Assume other currencies are handled or converted before this point
+            const amountInLocalCurrency = event.currency === 'MWK' ? totalCost : totalCost; // No conversion for MWK
 
             const result = await initiateDeposit({
-                depositIdOverride: tempDepositId,
                 amount: amountInLocalCurrency.toString(),
-                currency: 'MWK', // PawaPay for this integration expects MWK
+                currency: 'MWK',
                 country: 'MWI',
                 correspondent: selectedProvider.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
                 metadata: {
                     type: 'ticket_purchase',
+                    ticketId: tempTicketId,
+                    pin: newPin,
                     eventId: event.id,
+                    holderName: fullName,
+                    holderEmail: email,
+                    holderPhone: phone || '',
+                    holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+                    ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+                    benefits: benefitsForTicket,
+                    backgroundImageUrl: event.ticketTemplate?.backgroundImageUrl || '',
+                    backgroundImageOpacity: event.ticketTemplate?.backgroundOpacity !== undefined ? event.ticketTemplate.backgroundOpacity / 100 : 0.1,
+                    totalPaid: totalCost
                 }
             });
 
             if (result.success && result.depositId) {
-                setDepositId(result.depositId); // Start polling
+                setDepositId(result.depositId);
             } else {
                 setPaymentStatus('failed');
                 toast({ variant: 'destructive', title: 'Payment Failed', description: result.message || 'Could not initiate payment.' });
@@ -286,8 +282,27 @@ export default function BuyTicketPage() {
 
     const handleManualPayment = async () => {
         try {
-            const { ticketId, pin } = await createTicketInDb('awaiting-confirmation', 'manual');
-            sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id }));
+            const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+            const benefitsForTicket: Benefit[] = (event.benefits || [])
+                .filter(b => selectedBenefits.includes(b.id))
+                .map((b: EventBenefit) => ({
+                    id: b.id, name: b.name, used: false,
+                    startTime: b.startTime ?? '', endTime: b.endTime ?? '',
+                    days: Array.isArray(b.days) && b.days.length ? b.days : [1],
+                }));
+
+            const newTicket: OmitIdTicket = {
+                eventId: event.id, holderName: fullName, holderEmail: email, holderPhone: phone || '',
+                holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`, pin: newPin,
+                ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+                benefits: benefitsForTicket, status: 'active', holderTitle: '',
+                backgroundImageUrl: event.ticketTemplate?.backgroundImageUrl || '',
+                backgroundImageOpacity: event.ticketTemplate?.backgroundOpacity !== undefined ? event.ticketTemplate.backgroundOpacity / 100 : 0.1,
+                totalPaid: totalCost, paymentMethod: 'manual', paymentStatus: 'awaiting-confirmation'
+            };
+
+            const createdTicketId = await addTicket(newTicket);
+            sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId: createdTicketId, pin: newPin, eventId: event.id }));
             router.push(`/events/${event.id}/success`);
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message });
@@ -526,6 +541,16 @@ export default function BuyTicketPage() {
                                 {isPurchasing ? <Loader2 className="mr-2 animate-spin" /> : null}
                                 {isPurchasing ? 'Processing...' : !canPurchase ? 'Event Full' : 'Confirm Purchase'}
                             </Button>
+                             {paymentStatus === 'failed' && (
+                                <div className="mt-2 text-center">
+                                    <Alert variant="destructive">
+                                        <AlertTitle>Payment Failed</AlertTitle>
+                                        <AlertDescription>
+                                            There was an issue initiating your payment. Please try again.
+                                        </AlertDescription>
+                                    </Alert>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>

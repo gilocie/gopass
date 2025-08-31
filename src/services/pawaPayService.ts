@@ -23,14 +23,13 @@ export interface PawaPayCountryConfig {
 }
 
 interface DepositPayload {
-    depositIdOverride?: string;
     amount: string;
     currency: string;
     country: 'MWI';
     correspondent: string;
     customerPhone: string;
     statementDescription: string;
-    metadata?: Record<string, any>; // Generic metadata
+    metadata?: Record<string, any>;
 }
 
 
@@ -99,7 +98,7 @@ export const initiateDeposit = async (payload: DepositPayload): Promise<{ succes
     }
 
     try {
-        const depositId = payload.depositIdOverride || uuidv4().toUpperCase();
+        const depositId = uuidv4().toUpperCase();
         const formattedAmount = parseFloat(payload.amount).toFixed(2);
         const customerTimestamp = new Date().toISOString();
 
@@ -148,7 +147,7 @@ export const initiateDeposit = async (payload: DepositPayload): Promise<{ succes
 /**
  * Checks the status of a deposit transaction.
  */
-export const checkDepositStatus = async (depositId: string): Promise<{ status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REJECTED' }> => {
+export const checkDepositStatus = async (depositId: string): Promise<{ status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REJECTED', deposit?: any }> => {
     if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
         throw new Error("Payment service is not configured.");
     }
@@ -166,7 +165,7 @@ export const checkDepositStatus = async (depositId: string): Promise<{ status: '
         const data = await response.json();
         
         if (Array.isArray(data) && data.length > 0) {
-            return { status: data[0].status };
+            return { status: data[0].status, deposit: data[0] };
         }
         
         return { status: 'PENDING' };
