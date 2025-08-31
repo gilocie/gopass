@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getEventById } from '@/services/eventService';
-import { addTicket } from '@/services/ticketService';
+import { addTicket, confirmTicketPayment } from '@/services/ticketService';
 import type { Event, OmitIdTicket, Benefit, EventBenefit, UserProfile, Organizer } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
@@ -68,7 +68,6 @@ export default function BuyTicketPage() {
         const fetchProviders = async () => {
             setLoadingProviders(true);
             try {
-                // Assuming MWI for now, this could be dynamic in a future version
                 const config = await getCountryConfig('MWI');
                 if (config) {
                     setProviders(config.providers.filter(p => p.status === 'OPERATIONAL'));
@@ -116,7 +115,7 @@ export default function BuyTicketPage() {
         fetchEventData();
     }, [eventId, router, toast]);
     
-      // --- Polling Logic for Online Payments ---
+    // --- Polling Logic for Online Payments ---
     React.useEffect(() => {
         if (paymentStatus !== 'pending' || !depositId || !event) {
             return;
@@ -125,17 +124,17 @@ export default function BuyTicketPage() {
         const interval = setInterval(async () => {
             try {
                 const { status } = await checkDepositStatus(depositId);
+                
                 if (status === 'COMPLETED') {
                     setPaymentStatus('success');
+                    await confirmTicketPayment(depositId);
                     toast({ title: 'Success!', description: `Your ticket for ${event.name} is confirmed.` });
                     clearInterval(interval);
-                     // The ticket has already been created, we just need to redirect
-                    setTimeout(() => {
-                        const lastPurchase = JSON.parse(sessionStorage.getItem('lastPurchaseDetails') || '{}');
-                        if (lastPurchase.depositId === depositId) {
-                             router.push(`/events/${event.id}/success`);
-                        }
-                    }, 2000);
+                     
+                    const lastPurchase = JSON.parse(sessionStorage.getItem('lastPurchaseDetails') || '{}');
+                    if (lastPurchase.depositId === depositId) {
+                        setTimeout(() => router.push(`/events/${event.id}/success`), 2000);
+                    }
                 } else if (status === 'FAILED' || status === 'REJECTED') {
                     setPaymentStatus('failed');
                     toast({ variant: 'destructive', title: 'Payment Failed', description: 'Your transaction could not be completed.' });
@@ -178,10 +177,9 @@ export default function BuyTicketPage() {
             .reduce((acc, b) => acc + (b.price || 0), 0);
     }, [event, selectedBenefits]);
 
-    const createTicketInDb = async (paymentStatus: 'pending' | 'completed' | 'awaiting-confirmation', paymentMethod: 'manual' | 'online') => {
+    const createTicketInDb = async (paymentStatus: 'pending' | 'completed' | 'awaiting-confirmation', paymentMethod: 'manual' | 'online', depositId?: string) => {
         if (!event) throw new Error("Event data not available");
 
-        // Re-fetch event and organizer profile to ensure we have the latest data
         const latestEvent = await getEventById(event.id);
         if (!latestEvent) throw new Error('Event not found while purchasing');
         
@@ -217,7 +215,7 @@ export default function BuyTicketPage() {
             backgroundImageOpacity, totalPaid: totalCost, paymentMethod, paymentStatus
         };
         
-        const ticketIdToUse = paymentMethod === 'online' && depositId ? depositId : undefined;
+        const ticketIdToUse = depositId || undefined;
         const createdTicketId = await addTicket({ ...newTicket, id: ticketIdToUse });
         if (!createdTicketId) throw new Error("addTicket returned an invalid ID");
         
@@ -249,23 +247,24 @@ export default function BuyTicketPage() {
 
         try {
             const tempDepositId = uuidv4().toUpperCase();
-            setDepositId(tempDepositId);
+            
+            // First, create the ticket in a pending state
+            const { ticketId, pin } = await createTicketInDb('pending', 'online', tempDepositId);
 
+            // Now, initiate payment with PawaPay
             const result = await initiateDeposit({
-                depositIdOverride: tempDepositId,
+                depositIdOverride: ticketId,
                 amount: totalCost.toString(),
                 currency: event.currency,
-                country: 'MWI', // Assuming MWI for now
+                country: 'MWI',
                 correspondent: selectedProvider.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
             });
 
             if (result.success && result.depositId) {
-                // Now that payment is initiated, create the ticket in DB
-                const { ticketId, pin } = await createTicketInDb('completed', 'online');
+                setDepositId(result.depositId); // Start polling
                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id, depositId: result.depositId }));
-                // Polling will handle the rest
             } else {
                 setPaymentStatus('failed');
                 toast({ variant: 'destructive', title: 'Payment Failed', description: result.message });
@@ -300,7 +299,6 @@ export default function BuyTicketPage() {
             setPhonePlaceholder('e.g. 991234567');
         }
     };
-
 
     const currentPlan = organizerProfile?.planId ? PLANS[organizerProfile.planId] : PLANS['hobby'];
     const maxTickets = event?.ticketsTotal ?? currentPlan.limits.maxTicketsPerEvent;

@@ -31,12 +31,7 @@ export const addTicket = async (ticket: OmitIdTicket & {id?: string}): Promise<s
         if ('id' in ticket && ticket.id) {
             const ticketDocRef = doc(db, 'tickets', ticket.id);
             await setDoc(ticketDocRef, stripUndefined(ticketWithTimestamp));
-             if (ticket.paymentStatus === 'completed') {
-                const eventDocRef = doc(db, 'events', ticket.eventId);
-                await updateDoc(eventDocRef, {
-                    ticketsIssued: increment(1)
-                });
-            }
+             // For online payments, we wait for confirmation before incrementing
             return ticket.id;
         }
 
@@ -162,7 +157,7 @@ export const markTicketAsPaid = async (ticketId: string, receiptUrl: string) => 
     }
 };
 
-// Organizer confirms a manual payment
+// Organizer confirms a manual payment or PawaPay confirms an online one
 export const confirmTicketPayment = async (ticketId: string) => {
     try {
         const ticketDoc = doc(db, 'tickets', ticketId);
