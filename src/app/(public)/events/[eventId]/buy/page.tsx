@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -250,8 +249,10 @@ export default function BuyTicketPage() {
             const tempTicketId = uuidv4().toUpperCase();
             const { pin } = await createTicketInDb('pending', 'online', tempTicketId);
             
-            // Convert amount to local currency (MWK) for PawaPay
-            const amountInLocalCurrency = convertCurrency(totalCost, 'MWK', organizerProfile?.exchangeRates);
+            // If event currency is MWK, use totalCost directly. Otherwise, convert from USD.
+            const amountInLocalCurrency = event.currency === 'MWK' 
+                ? totalCost 
+                : convertCurrency(totalCost, 'MWK', organizerProfile?.exchangeRates);
             
             // Now, initiate payment with PawaPay, using the ticket ID as the deposit ID
             const result = await initiateDeposit({
@@ -327,6 +328,11 @@ export default function BuyTicketPage() {
 
     const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'online' && (!selectedProvider || !phone));
 
+    const amountInLocalCurrency = event.currency === 'MWK' 
+                ? totalCost 
+                : convertCurrency(totalCost, 'MWK', organizerProfile?.exchangeRates);
+
+
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <Button variant="outline" size="sm" onClick={() => router.back()} className="mb-4">
@@ -340,7 +346,7 @@ export default function BuyTicketPage() {
                                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
                                 <h3 className="font-semibold text-lg">Awaiting Confirmation</h3>
                                 <p className="text-muted-foreground text-sm">
-                                    Please check your phone and enter your PIN to approve the payment of {formatCurrency(convertCurrency(totalCost, 'MWK', organizerProfile?.exchangeRates), currencies['MWK'])}.
+                                    Please check your phone and enter your PIN to approve the payment of {formatCurrency(amountInLocalCurrency, currencies['MWK'])}.
                                 </p>
                                 <Button variant="outline" onClick={() => { setPaymentStatus('idle'); setIsPurchasing(false); }}>Cancel</Button>
                             </CardContent>
