@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { getCountryConfig, initiateDeposit, checkDepositStatus, PawaPayProvider } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { v4 as uuidv4 } from 'uuid';
 
 
 export default function BuyTicketPage() {
@@ -180,12 +181,14 @@ export default function BuyTicketPage() {
     const createTicketInDb = async (paymentStatus: 'pending' | 'completed' | 'awaiting-confirmation', paymentMethod: 'manual' | 'online') => {
         if (!event) throw new Error("Event data not available");
 
+        // Re-fetch event and organizer profile to ensure we have the latest data
         const latestEvent = await getEventById(event.id);
         if (!latestEvent) throw new Error('Event not found while purchasing');
         
-        const organizerId = latestEvent.organizerId || 'default';
-        const latestOrganizer = await getUserProfile(organizerId);
+        const organizerId = latestEvent.organizerId;
+        if (!organizerId) throw new Error("Event is missing an organizer.");
 
+        const latestOrganizer = await getUserProfile(organizerId);
         const latestPlan = latestOrganizer?.planId ? PLANS[latestOrganizer.planId] : PLANS['hobby'];
         const latestMax = latestPlan.limits.maxTicketsPerEvent;
 
@@ -211,11 +214,11 @@ export default function BuyTicketPage() {
             ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
             benefits: benefitsForTicket, status: 'active', holderTitle: '',
             backgroundImageUrl: event.ticketTemplate?.backgroundImageUrl || '',
-            backgroundImageOpacity, totalPaid: totalCost, paymentMethod, paymentStatus,
-            receiptUrl: '' // Receipt will be added later
+            backgroundImageOpacity, totalPaid: totalCost, paymentMethod, paymentStatus
         };
         
-        const createdTicketId = await addTicket({ ...newTicket, id: newTicket.paymentMethod === 'online' ? depositId || undefined : undefined });
+        const ticketIdToUse = paymentMethod === 'online' && depositId ? depositId : undefined;
+        const createdTicketId = await addTicket({ ...newTicket, id: ticketIdToUse });
         if (!createdTicketId) throw new Error("addTicket returned an invalid ID");
         
         return { ticketId: createdTicketId, pin: newPin };
@@ -300,7 +303,7 @@ export default function BuyTicketPage() {
 
 
     const currentPlan = organizerProfile?.planId ? PLANS[organizerProfile.planId] : PLANS['hobby'];
-    const maxTickets = currentPlan.limits.maxTicketsPerEvent;
+    const maxTickets = event?.ticketsTotal ?? currentPlan.limits.maxTicketsPerEvent;
     const canPurchase = event ? (isFinite(maxTickets) ? ((event.ticketsIssued ?? 0) < maxTickets) : true) : false;
     
     const hasManualOptions = organizer?.paymentDetails?.wireTransfer?.accountNumber || organizer?.paymentDetails?.mobileMoney?.phoneNumber;
