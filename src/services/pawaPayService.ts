@@ -24,18 +24,6 @@ export interface PawaPayCountryConfig {
     providers: PawaPayProvider[];
 }
 
-interface TicketDetailsForPayment {
-    eventId: string;
-    holderName: string;
-    holderEmail: string;
-    holderPhone: string;
-    holderPhotoUrl: string;
-    ticketType: string;
-    benefits: OmitIdTicket['benefits'];
-    totalPaid: number;
-}
-
-
 // --- API CONFIGURATION ---
 
 const PAWAPAY_BASE_URL = "https://api.sandbox.pawapay.io";
@@ -147,7 +135,7 @@ export const initiatePlanUpgradeDeposit = async (payload: {
 };
 
 /**
- * Creates a temporary ticket and initiates a PawaPay deposit.
+ * Initiates a PawaPay deposit for a pre-created temporary ticket.
  */
 export const initiateTicketDeposit = async (payload: {
     amount: string;
@@ -156,32 +144,20 @@ export const initiateTicketDeposit = async (payload: {
     correspondent: string;
     customerPhone: string;
     statementDescription: string;
-    ticketDetails: TicketDetailsForPayment;
+    ticketId: string; // The ID of the pending ticket in Firestore
+    pin: string;
 }) => {
     if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
         return { success: false, message: "Payment service is not configured." };
     }
 
     try {
-        // Step 1: Create a temporary ticket in Firestore with a pending status
-        const newPin = Math.floor(100000 + Math.random() * 900000).toString();
-        const tempTicketData: OmitIdTicket = {
-            ...payload.ticketDetails,
-            pin: newPin,
-            status: 'active', // It's active but payment is pending
-            paymentMethod: 'online',
-            paymentStatus: 'pending',
-            holderTitle: '', // Default value
-        };
-        const ticketId = await addTicket(tempTicketData);
-
-        // Step 2: Initiate PawaPay deposit
         const depositId = uuidv4().toUpperCase();
         
         const requestBody = {
             depositId,
             amount: payload.amount,
-            currency: "MWK", // PawaPay Malawi requires MWK
+            currency: payload.currency,
             country: payload.country,
             correspondent: payload.correspondent,
             payer: { type: "MSISDN", address: { value: payload.customerPhone } },
@@ -189,8 +165,8 @@ export const initiateTicketDeposit = async (payload: {
             statementDescription: payload.statementDescription,
             metadata: {
                 type: 'ticket_purchase',
-                ticketId: ticketId,
-                pin: newPin, // Pass the PIN in metadata to return to user on success
+                ticketId: payload.ticketId,
+                pin: payload.pin,
             }
         };
 
@@ -204,7 +180,6 @@ export const initiateTicketDeposit = async (payload: {
 
         if (!response.ok) {
             console.error("PawaPay API Error (Ticket Purchase):", responseData);
-            // Optional: Could delete the temporary ticket here if initiation fails
             return { success: false, message: responseData.errorMessage || "Failed to initiate payment." };
         }
 

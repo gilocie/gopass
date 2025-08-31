@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getEventById } from '@/services/eventService';
-import type { Event, Benefit, EventBenefit, UserProfile, Organizer } from '@/lib/types';
+import type { Event, Benefit, EventBenefit, UserProfile, Organizer, OmitIdTicket } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,14 +19,13 @@ import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
 import { formatCurrency, currencies, BASE_CURRENCY_CODE } from '@/lib/currency';
 import { getUserProfile } from '@/services/userService';
-import { PLANS } from '@/lib/plans';
 import { getOrganizerById } from '@/services/organizerService';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
-import { getCountryConfig, initiateTicketDeposit, checkDepositStatus, PawaPayProvider } from '@/services/pawaPayService';
+import { getCountryConfig, initiateTicketDeposit, PawaPayProvider, checkDepositStatus } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { uploadFileFromServer } from '@/services/storageService';
+import { addTicket } from '@/services/ticketService';
 
 
 export default function BuyTicketPage() {
@@ -46,7 +45,6 @@ export default function BuyTicketPage() {
     const [email, setEmail] = React.useState('');
     const [phone, setPhone] = React.useState('');
     const [photoUrl, setPhotoUrl] = React.useState('');
-    const [photoFile, setPhotoFile] = React.useState<File | null>(null);
     const [selectedBenefits, setSelectedBenefits] = React.useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('online');
     const [phonePlaceholder, setPhonePlaceholder] = React.useState('991234567');
@@ -185,6 +183,15 @@ export default function BuyTicketPage() {
             .filter(b => selectedBenefits.includes(b.id))
             .reduce((acc, b) => acc + (b.price || 0), 0);
     }, [event, selectedBenefits]);
+    
+    const amountInLocalCurrency = React.useMemo(() => {
+        if (!event) return 0;
+        if (event.currency === 'MWK') {
+            return totalCost;
+        }
+        // Assuming any other currency is USD and needs conversion
+        return totalCost * 1750; // Use a fixed rate for simplicity
+    }, [totalCost, event]);
 
     const handlePurchase = async () => {
         if (!event || !fullName.trim() || !email.trim()) {
@@ -199,15 +206,6 @@ export default function BuyTicketPage() {
         setPaymentStatus('pending');
 
         try {
-            let finalPhotoUrl = photoUrl || `https://placehold.co/128x128.png`;
-
-            if (photoFile) {
-                const formData = new FormData();
-                formData.append('file', photoFile);
-                formData.append('path', `attendee-photos/${eventId}/${Date.now()}_${photoFile.name}`);
-                finalPhotoUrl = await uploadFileFromServer(formData);
-            }
-
             const benefitsForTicket: Benefit[] = (event.benefits || [])
                 .filter(b => selectedBenefits.includes(b.id))
                 .map((b: EventBenefit) => ({
@@ -216,23 +214,36 @@ export default function BuyTicketPage() {
                     days: Array.isArray(b.days) && b.days.length ? b.days : [1],
                 }));
             
+            // Step 1: Create a temporary ticket in Firestore with a pending status
+            const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+            const tempTicketData: OmitIdTicket = {
+                eventId: event.id,
+                holderName: fullName,
+                holderEmail: email,
+                holderPhone: phone || '',
+                holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+                holderTitle: '',
+                ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+                benefits: benefitsForTicket,
+                totalPaid: totalCost,
+                pin: newPin,
+                status: 'active',
+                paymentMethod: 'online',
+                paymentStatus: 'pending',
+            };
+
+            const ticketId = await addTicket(tempTicketData);
+
+            // Step 2: Initiate PawaPay deposit with the new ticketId
             const result = await initiateTicketDeposit({
-                amount: totalCost.toString(),
-                currency: event.currency,
+                amount: amountInLocalCurrency.toString(),
+                currency: 'MWK',
                 country: 'MWI',
                 correspondent: selectedProvider!.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
-                ticketDetails: {
-                    eventId: event.id,
-                    holderName: fullName,
-                    holderEmail: email,
-                    holderPhone: phone || '',
-                    holderPhotoUrl: finalPhotoUrl,
-                    ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-                    benefits: benefitsForTicket,
-                    totalPaid: totalCost,
-                }
+                ticketId: ticketId,
+                pin: newPin,
             });
 
             if (result.success && result.depositId) {
@@ -278,25 +289,7 @@ export default function BuyTicketPage() {
     const optionalBenefits = event.benefits?.filter(b => b.id !== 'benefit_training') || [];
 
     const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'online' && (!selectedProvider || !phone));
-
-    const amountInLocalCurrency = totalCost;
-
-    // Helper to convert data URL to File object
-    function dataURLtoFile(dataurl: string, filename: string) {
-        let arr = dataurl.split(','),
-            mimeMatch = arr[0].match(/:(.*?);/),
-            mime = mimeMatch ? mimeMatch[1] : 'image/jpeg',
-            bstr = atob(arr[1]), 
-            n = bstr.length, 
-            u8arr = new Uint8Array(n);
-            
-        while(n--){
-            u8arr[n] = bstr.charCodeAt(n);
-        }
-        
-        return new File([u8arr], filename, {type:mime});
-    }
-
+    
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <Button variant="outline" size="sm" onClick={() => router.back()} className="mb-4">
@@ -518,8 +511,6 @@ export default function BuyTicketPage() {
                     imageSrc={imageToCrop}
                     onCropComplete={(croppedImageUrl) => {
                         setPhotoUrl(croppedImageUrl);
-                        const file = dataURLtoFile(croppedImageUrl, 'photo.jpg');
-                        setPhotoFile(file);
                         setIsCropperOpen(false);
                         setImageToCrop(null);
                     }}
