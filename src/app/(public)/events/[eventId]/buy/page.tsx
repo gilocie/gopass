@@ -19,7 +19,7 @@ import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info, AlertCirc
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
-import { formatCurrency, currencies, BASE_CURRENCY_CODE } from '@/lib/currency';
+import { formatCurrency, currencies, BASE_CURRENCY_CODE, convertCurrency } from '@/lib/currency';
 import { getUserProfile } from '@/services/userService';
 import { PLANS } from '@/lib/plans';
 import { getOrganizerById } from '@/services/organizerService';
@@ -188,7 +188,7 @@ export default function BuyTicketPage() {
 
         const latestOrganizer = await getUserProfile(organizerId);
         const latestPlan = latestOrganizer?.planId ? PLANS[latestOrganizer.planId] : PLANS['hobby'];
-        const latestMax = latestPlan.limits.maxTicketsPerEvent;
+        const latestMax = latestEvent.ticketsTotal ?? latestPlan.limits.maxTicketsPerEvent;
 
         if (isFinite(latestMax) && (latestEvent.ticketsIssued ?? 0) >= latestMax) {
             throw new Error('Event is full. No more tickets available.');
@@ -250,11 +250,14 @@ export default function BuyTicketPage() {
             const tempTicketId = uuidv4().toUpperCase();
             const { pin } = await createTicketInDb('pending', 'online', tempTicketId);
             
+            // Convert amount to local currency (MWK) for PawaPay
+            const amountInLocalCurrency = convertCurrency(totalCost, 'MWK', organizerProfile?.exchangeRates);
+            
             // Now, initiate payment with PawaPay, using the ticket ID as the deposit ID
             const result = await initiateDeposit({
                 depositIdOverride: tempTicketId,
-                amount: totalCost.toString(),
-                currency: event.currency,
+                amount: amountInLocalCurrency.toString(),
+                currency: 'MWK', // Always use MWK for this PawaPay integration
                 country: 'MWI',
                 correspondent: selectedProvider.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
@@ -337,7 +340,7 @@ export default function BuyTicketPage() {
                                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
                                 <h3 className="font-semibold text-lg">Awaiting Confirmation</h3>
                                 <p className="text-muted-foreground text-sm">
-                                    Please check your phone and enter your PIN to approve the payment of {formatCurrency(totalCost, currencies[event.currency])}.
+                                    Please check your phone and enter your PIN to approve the payment of {formatCurrency(convertCurrency(totalCost, 'MWK', organizerProfile?.exchangeRates), currencies['MWK'])}.
                                 </p>
                                 <Button variant="outline" onClick={() => { setPaymentStatus('idle'); setIsPurchasing(false); }}>Cancel</Button>
                             </CardContent>
@@ -543,3 +546,4 @@ export default function BuyTicketPage() {
         </div>
     );
 }
+
