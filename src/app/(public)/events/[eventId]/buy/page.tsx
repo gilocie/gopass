@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { getCountryConfig, initiateTicketDeposit, checkDepositStatus, PawaPayProvider } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { uploadFileFromServer } from '@/services/storageService';
 
 
 export default function BuyTicketPage() {
@@ -45,6 +46,7 @@ export default function BuyTicketPage() {
     const [email, setEmail] = React.useState('');
     const [phone, setPhone] = React.useState('');
     const [photoUrl, setPhotoUrl] = React.useState('');
+    const [photoFile, setPhotoFile] = React.useState<File | null>(null);
     const [selectedBenefits, setSelectedBenefits] = React.useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('online');
     const [phonePlaceholder, setPhonePlaceholder] = React.useState('991234567');
@@ -189,27 +191,23 @@ export default function BuyTicketPage() {
             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please provide your full name and email.' });
             return;
         }
-        setIsPurchasing(true);
-
-        if (paymentMethod === 'online') {
-            await handleOnlinePayment();
-        } else {
-            // handleManualPayment remains a client-side action for now
-            // as it doesn't involve a third-party API before DB write.
-            // await handleManualPayment();
-        }
-    };
-
-    const handleOnlinePayment = async () => {
-        if (!event || !selectedProvider || !phone) {
+        if (paymentMethod === 'online' && (!selectedProvider || !phone)) {
             toast({ variant: 'destructive', title: 'Missing Details', description: 'Please select a provider and enter your phone number.' });
-            setIsPurchasing(false);
             return;
         }
-
+        setIsPurchasing(true);
         setPaymentStatus('pending');
 
         try {
+            let finalPhotoUrl = photoUrl || `https://placehold.co/128x128.png`;
+
+            if (photoFile) {
+                const formData = new FormData();
+                formData.append('file', photoFile);
+                formData.append('path', `attendee-photos/${eventId}/${Date.now()}_${photoFile.name}`);
+                finalPhotoUrl = await uploadFileFromServer(formData);
+            }
+
             const benefitsForTicket: Benefit[] = (event.benefits || [])
                 .filter(b => selectedBenefits.includes(b.id))
                 .map((b: EventBenefit) => ({
@@ -222,7 +220,7 @@ export default function BuyTicketPage() {
                 amount: totalCost.toString(),
                 currency: event.currency,
                 country: 'MWI',
-                correspondent: selectedProvider.provider,
+                correspondent: selectedProvider!.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
                 ticketDetails: {
@@ -230,7 +228,7 @@ export default function BuyTicketPage() {
                     holderName: fullName,
                     holderEmail: email,
                     holderPhone: phone || '',
-                    holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+                    holderPhotoUrl: finalPhotoUrl,
                     ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
                     benefits: benefitsForTicket,
                     totalPaid: totalCost,
@@ -246,7 +244,7 @@ export default function BuyTicketPage() {
             }
         } catch (error: any) {
             setPaymentStatus('failed');
-            toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message || 'An error occurred during payment initiation.' });
+            toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message || 'An unexpected server error occurred.' });
             setIsPurchasing(false);
         }
     }
@@ -283,6 +281,21 @@ export default function BuyTicketPage() {
 
     const amountInLocalCurrency = totalCost;
 
+    // Helper to convert data URL to File object
+    function dataURLtoFile(dataurl: string, filename: string) {
+        let arr = dataurl.split(','),
+            mimeMatch = arr[0].match(/:(.*?);/),
+            mime = mimeMatch ? mimeMatch[1] : 'image/jpeg',
+            bstr = atob(arr[1]), 
+            n = bstr.length, 
+            u8arr = new Uint8Array(n);
+            
+        while(n--){
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        
+        return new File([u8arr], filename, {type:mime});
+    }
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -505,6 +518,8 @@ export default function BuyTicketPage() {
                     imageSrc={imageToCrop}
                     onCropComplete={(croppedImageUrl) => {
                         setPhotoUrl(croppedImageUrl);
+                        const file = dataURLtoFile(croppedImageUrl, 'photo.jpg');
+                        setPhotoFile(file);
                         setIsCropperOpen(false);
                         setImageToCrop(null);
                     }}
