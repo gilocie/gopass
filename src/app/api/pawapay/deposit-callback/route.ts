@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { upgradeUserPlan } from '@/services/userService';
+import { confirmTicketPayment } from '@/services/ticketService';
 import type { PlanId } from '@/lib/plans';
 
 export async function POST(request: NextRequest) {
@@ -10,28 +11,32 @@ export async function POST(request: NextRequest) {
 
     console.log("Received pawaPay Deposit Callback:", JSON.stringify(callbackData, null, 2));
 
-    // Basic validation
-    if (!callbackData.depositId || !callbackData.status || !callbackData.metadata) {
+    if (!callbackData.depositId || !callbackData.status) {
       return NextResponse.json({ error: 'Invalid callback data' }, { status: 400 });
     }
     
-    const { status, metadata } = callbackData;
-    const { userId, planId } = metadata;
+    const { depositId, status, metadata } = callbackData;
 
     if (status === 'SUCCESSFUL') {
-      if (userId && planId) {
-        console.log(`Upgrading user ${userId} to plan ${planId}`);
-        await upgradeUserPlan(userId, planId as PlanId);
-        console.log(`User ${userId} successfully upgraded.`);
+      const transactionType = metadata?.type || 'unknown';
+
+      if (transactionType === 'plan_upgrade' && metadata.userId && metadata.planId) {
+        console.log(`Upgrading user ${metadata.userId} to plan ${metadata.planId}`);
+        await upgradeUserPlan(metadata.userId, metadata.planId as PlanId);
+        console.log(`User ${metadata.userId} successfully upgraded.`);
+
+      } else if (transactionType === 'ticket_purchase' && metadata.ticketId) {
+        console.log(`Confirming payment for ticket ${metadata.ticketId}`);
+        await confirmTicketPayment(metadata.ticketId);
+        console.log(`Ticket ${metadata.ticketId} payment confirmed.`);
+
       } else {
-         console.warn("Callback successful but missing userId or planId in metadata");
+         console.warn("Callback successful but metadata is missing or invalid for processing.", metadata);
       }
     } else {
-        console.log(`Deposit ${callbackData.depositId} was not successful. Status: ${status}`);
-        // Here you might want to log the failure in your database for the user.
+        console.log(`Deposit ${depositId} was not successful. Status: ${status}`);
     }
 
-    // Acknowledge receipt to pawaPay
     return NextResponse.json({ status: 'received' }, { status: 200 });
 
   } catch (error) {

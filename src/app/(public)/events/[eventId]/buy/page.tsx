@@ -127,7 +127,7 @@ export default function BuyTicketPage() {
                 
                 if (status === 'COMPLETED') {
                     setPaymentStatus('success');
-                    await confirmTicketPayment(depositId);
+                    // The callback will now handle the confirmation
                     toast({ title: 'Success!', description: `Your ticket for ${event.name} is confirmed.` });
                     clearInterval(interval);
                      
@@ -246,25 +246,30 @@ export default function BuyTicketPage() {
         setPaymentStatus('pending');
 
         try {
-            const tempDepositId = uuidv4().toUpperCase();
+            // First, create the ticket in a pending state with a unique ID
+            const tempTicketId = uuidv4().toUpperCase();
+            const { pin } = await createTicketInDb('pending', 'online', tempTicketId);
             
-            // First, create the ticket in a pending state
-            const { ticketId, pin } = await createTicketInDb('pending', 'online', tempDepositId);
-
-            // Now, initiate payment with PawaPay
+            // Now, initiate payment with PawaPay, using the ticket ID as the deposit ID
             const result = await initiateDeposit({
-                depositIdOverride: ticketId,
+                depositIdOverride: tempTicketId,
                 amount: totalCost.toString(),
                 currency: event.currency,
                 country: 'MWI',
                 correspondent: selectedProvider.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
+                metadata: {
+                    type: 'ticket_purchase',
+                    ticketId: tempTicketId,
+                    eventId: event.id,
+                    totalCost: totalCost
+                }
             });
 
             if (result.success && result.depositId) {
                 setDepositId(result.depositId); // Start polling
-                sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id, depositId: result.depositId }));
+                sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId: result.depositId, pin, eventId: event.id, depositId: result.depositId }));
             } else {
                 setPaymentStatus('failed');
                 toast({ variant: 'destructive', title: 'Payment Failed', description: result.message });
@@ -279,7 +284,7 @@ export default function BuyTicketPage() {
 
     const handleManualPayment = async () => {
         try {
-            const { ticketId, pin } = await createTicketInDb('pending', 'manual');
+            const { ticketId, pin } = await createTicketInDb('awaiting-confirmation', 'manual');
             sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id }));
             router.push(`/events/${event.id}/success`);
         } catch (error: any) {
@@ -538,4 +543,3 @@ export default function BuyTicketPage() {
         </div>
     );
 }
-

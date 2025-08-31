@@ -50,7 +50,7 @@ export default function PaymentPage() {
                 const { status } = await checkDepositStatus(depositId);
                 if (status === 'COMPLETED') {
                     setPaymentStatus('success');
-                    if(user) await upgradeUserPlan(user.uid, planId);
+                    // The callback now handles the upgrade
                     toast({ title: 'Success!', description: `You have been upgraded to the ${plan.name} plan.` });
                     clearInterval(interval);
                     setTimeout(() => router.push('/dashboard'), 2000);
@@ -59,12 +59,10 @@ export default function PaymentPage() {
                     toast({ variant: 'destructive', title: 'Payment Failed', description: 'Your transaction could not be completed.' });
                     clearInterval(interval);
                 }
-                // If PENDING, do nothing and let the interval run again
             } catch (error) {
                 console.error("Polling error:", error);
-                // Don't clear interval, so it can retry
             }
-        }, 5000); // Poll every 5 seconds
+        }, 5000);
 
         return () => clearInterval(interval);
 
@@ -105,27 +103,26 @@ export default function PaymentPage() {
             return;
         }
        
-        // Optimistic UI update
         setPaymentStatus('pending');
         setIsProcessing(true);
         
         try {
             const result = await initiateDeposit({
-                userId: user.uid,
-                planId: planId,
                 amount: priceInLocalCurrency.toString(),
                 currency: 'MWK',
                 country: 'MWI',
                 correspondent: selectedProvider.provider,
-                customerEmail: user.email || 'not-provided@gopass.app',
-                customerName: user.displayName || 'GoPass User',
                 customerPhone: `${countryPrefix}${phoneNumber.replace(/^0+/, '')}`,
                 statementDescription: `GoPass ${plan.name} Plan`,
+                metadata: {
+                    type: 'plan_upgrade',
+                    userId: user.uid,
+                    planId: planId,
+                }
             });
             
             if (result.success && result.depositId) {
                 setDepositId(result.depositId);
-                // Status is already 'pending', so polling will start automatically
             } else {
                 setPaymentStatus('failed');
                 toast({ variant: 'destructive', title: 'Payment Failed', description: result.message });

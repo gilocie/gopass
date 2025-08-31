@@ -2,7 +2,6 @@
 'use server';
 
 import { v4 as uuidv4 } from 'uuid';
-import type { PlanId } from '@/lib/plans';
 
 // --- TYPE DEFINITIONS ---
 
@@ -24,13 +23,14 @@ export interface PawaPayCountryConfig {
 }
 
 interface DepositPayload {
-    depositIdOverride?: string; // To use ticketId as depositId
+    depositIdOverride?: string;
     amount: string;
     currency: string;
     country: 'MWI';
-    correspondent: string; // This is the provider ID like 'AIRTEL_MWI'
-    customerPhone: string; // The full MSISDN e.g., 265...
+    correspondent: string;
+    customerPhone: string;
     statementDescription: string;
+    metadata?: Record<string, any>; // Generic metadata
 }
 
 
@@ -117,6 +117,7 @@ export const initiateDeposit = async (payload: DepositPayload): Promise<{ succes
             },
             customerTimestamp,
             statementDescription: payload.statementDescription,
+            metadata: payload.metadata || {}
         };
         
         const depositApiResponse = await fetch(`${PAWAPAY_BASE_URL}/deposits`, {
