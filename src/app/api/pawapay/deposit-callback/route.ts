@@ -2,8 +2,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { upgradeUserPlan } from '@/services/userService';
-import { confirmTicketPayment } from '@/services/ticketService';
+import { createFinalTicket } from '@/services/ticketService';
 import type { PlanId } from '@/lib/plans';
+import type { OmitIdTicket } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,8 +18,7 @@ export async function POST(request: NextRequest) {
     
     const { status, metadata } = callbackData;
 
-    // We only care about successful payments in the callback
-    if (status === 'COMPLETED' || status === 'SUCCESSFUL') { // PawaPay uses both
+    if (status === 'COMPLETED' || status === 'SUCCESSFUL') {
       const transactionType = metadata?.type || 'unknown';
 
       if (transactionType === 'plan_upgrade' && metadata.userId && metadata.planId) {
@@ -28,8 +28,13 @@ export async function POST(request: NextRequest) {
 
       } else if (transactionType === 'ticket_purchase' && metadata.ticketId) {
         console.log(`Processing successful payment for ticket ${metadata.ticketId} via callback.`);
-        await confirmTicketPayment(metadata.ticketId);
-        console.log(`Ticket ${metadata.ticketId} payment confirmed successfully via callback.`);
+        // Note: The ticket creation now happens here, based on the metadata.
+        // We're just updating its status and incrementing the event counter.
+        const ticketData = metadata as Omit<OmitIdTicket, 'pin'> & {id: string, pin: string};
+        
+        // This function now handles updating status and incrementing event count
+        await createFinalTicket(ticketData.id, ticketData);
+        console.log(`Ticket ${metadata.ticketId} payment confirmed and finalized successfully via callback.`);
 
       } else {
          console.warn("Callback successful but metadata is missing or invalid for processing.", metadata);

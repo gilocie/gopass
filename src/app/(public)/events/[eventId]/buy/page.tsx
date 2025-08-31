@@ -22,10 +22,11 @@ import { getUserProfile } from '@/services/userService';
 import { getOrganizerById } from '@/services/organizerService';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
-import { getCountryConfig, initiateTicketDeposit, PawaPayProvider, checkDepositStatus } from '@/services/pawaPayService';
+import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { addTicket } from '@/services/ticketService';
+import { createFinalTicket } from '@/services/ticketService';
+import type { PawaPayProvider } from '@/services/pawaPayService';
 
 
 export default function BuyTicketPage() {
@@ -186,12 +187,12 @@ export default function BuyTicketPage() {
     
     const amountInLocalCurrency = React.useMemo(() => {
         if (!event) return 0;
-        if (event.currency === 'MWK') {
-            return totalCost;
+        if (event.currency === 'MWK') return totalCost;
+        if (organizerProfile?.exchangeRates && organizerProfile.exchangeRates[event.currency]) {
+            return totalCost * organizerProfile.exchangeRates[event.currency];
         }
-        // Assuming any other currency is USD and needs conversion
-        return totalCost * 1750; // Use a fixed rate for simplicity
-    }, [totalCost, event]);
+        return totalCost * 1750; // Fallback rate
+    }, [totalCost, event, organizerProfile]);
 
     const handlePurchase = async () => {
         if (!event || !fullName.trim() || !email.trim()) {
@@ -213,28 +214,7 @@ export default function BuyTicketPage() {
                     startTime: b.startTime ?? '', endTime: b.endTime ?? '',
                     days: Array.isArray(b.days) && b.days.length ? b.days : [1],
                 }));
-            
-            // Step 1: Create a temporary ticket in Firestore with a pending status
-            const newPin = Math.floor(100000 + Math.random() * 900000).toString();
-            const tempTicketData: OmitIdTicket = {
-                eventId: event.id,
-                holderName: fullName,
-                holderEmail: email,
-                holderPhone: phone || '',
-                holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
-                holderTitle: '',
-                ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-                benefits: benefitsForTicket,
-                totalPaid: totalCost,
-                pin: newPin,
-                status: 'active',
-                paymentMethod: 'online',
-                paymentStatus: 'pending',
-            };
 
-            const ticketId = await addTicket(tempTicketData);
-
-            // Step 2: Initiate PawaPay deposit with the new ticketId
             const result = await initiateTicketDeposit({
                 amount: amountInLocalCurrency.toString(),
                 currency: 'MWK',
@@ -242,8 +222,19 @@ export default function BuyTicketPage() {
                 correspondent: selectedProvider!.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
-                ticketId: ticketId,
-                pin: newPin,
+                // --- All ticket data is now passed in metadata ---
+                ticketData: {
+                    eventId: event.id,
+                    holderName: fullName,
+                    holderEmail: email,
+                    holderPhone: phone || '',
+                    holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+                    holderTitle: '',
+                    ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+                    benefits: benefitsForTicket,
+                    totalPaid: totalCost,
+                    paymentMethod: 'online'
+                }
             });
 
             if (result.success && result.depositId) {

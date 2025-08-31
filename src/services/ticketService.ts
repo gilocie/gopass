@@ -1,5 +1,4 @@
 
-
 'use client';
 import * as React from 'react';
 import { db } from '@/lib/firebase';
@@ -55,6 +54,37 @@ export const addTicket = async (ticket: OmitIdTicket & {id?: string}): Promise<s
         throw new Error("Could not add ticket");
     }
 };
+
+/**
+ * Creates the final ticket after a successful payment.
+ * This function is called from the server-side callback.
+ */
+export const createFinalTicket = async (ticketId: string, ticketData: OmitIdTicket) => {
+    const ticketDocRef = doc(db, 'tickets', ticketId);
+    
+    // Check if the ticket already exists to avoid duplicate processing
+    const docSnap = await getDoc(ticketDocRef);
+    if (docSnap.exists() && docSnap.data().paymentStatus === 'completed') {
+        console.log(`Ticket ${ticketId} already marked as completed. Skipping.`);
+        return;
+    }
+
+    const finalTicketData = {
+        ...ticketData,
+        id: ticketId,
+        paymentStatus: 'completed',
+        createdAt: serverTimestamp(), // Set the creation time on success
+    };
+
+    await setDoc(ticketDocRef, stripUndefined(finalTicketData), { merge: true });
+
+    // Increment the ticketsIssued count on the event
+    const eventDocRef = doc(db, 'events', ticketData.eventId);
+    await updateDoc(eventDocRef, {
+        ticketsIssued: increment(1)
+    });
+};
+
 
 // Get a single ticket by ID
 export const getTicketById = async (ticketId: string): Promise<Ticket | null> => {
@@ -157,7 +187,7 @@ export const markTicketAsPaid = async (ticketId: string, receiptUrl: string) => 
     }
 };
 
-// Organizer confirms a manual payment or PawaPay confirms an online one
+// Organizer confirms a manual payment
 export const confirmTicketPayment = async (ticketId: string) => {
     try {
         const ticketDoc = doc(db, 'tickets', ticketId);
