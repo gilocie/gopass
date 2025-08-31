@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getEventById } from '@/services/eventService';
-import { addTicket, confirmTicketPayment } from '@/services/ticketService';
+import { addTicket } from '@/services/ticketService';
 import type { Event, OmitIdTicket, Benefit, EventBenefit, UserProfile, Organizer } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,11 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
-import { formatCurrency, currencies, BASE_CURRENCY_CODE, convertCurrency } from '@/lib/currency';
+import { formatCurrency, currencies } from '@/lib/currency';
 import { getUserProfile } from '@/services/userService';
 import { PLANS } from '@/lib/plans';
 import { getOrganizerById } from '@/services/organizerService';
@@ -126,14 +126,16 @@ export default function BuyTicketPage() {
                 
                 if (status === 'COMPLETED') {
                     setPaymentStatus('success');
-                    // The callback will now handle the confirmation
-                    toast({ title: 'Success!', description: `Your ticket for ${event.name} is confirmed.` });
                     clearInterval(interval);
-                     
-                    const lastPurchase = JSON.parse(sessionStorage.getItem('lastPurchaseDetails') || '{}');
-                    if (lastPurchase.depositId === depositId) {
-                        setTimeout(() => router.push(`/events/${event.id}/success`), 2000);
-                    }
+                    
+                    // Payment is confirmed, now we create the ticket.
+                    const { ticketId, pin } = await createTicketInDb('completed', 'online', depositId);
+                    
+                    toast({ title: 'Success!', description: `Your ticket for ${event.name} is confirmed.` });
+                    
+                    sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId, pin, eventId: event.id, depositId }));
+                    setTimeout(() => router.push(`/events/${event.id}/success`), 2000);
+
                 } else if (status === 'FAILED' || status === 'REJECTED') {
                     setPaymentStatus('failed');
                     toast({ variant: 'destructive', title: 'Payment Failed', description: 'Your transaction could not be completed.' });
@@ -142,6 +144,10 @@ export default function BuyTicketPage() {
                 }
             } catch (error) {
                 console.error("Polling error:", error);
+                setPaymentStatus('failed');
+                toast({ variant: 'destructive', title: 'Payment Failed', description: 'An error occurred while checking payment status.' });
+                clearInterval(interval);
+                setIsPurchasing(false);
             }
         }, 5000); // Poll every 5 seconds
 
@@ -176,7 +182,7 @@ export default function BuyTicketPage() {
             .reduce((acc, b) => acc + (b.price || 0), 0);
     }, [event, selectedBenefits]);
 
-    const createTicketInDb = async (paymentStatus: 'pending' | 'completed' | 'awaiting-confirmation', paymentMethod: 'manual' | 'online', depositId?: string) => {
+    const createTicketInDb = async (paymentStatus: 'completed' | 'awaiting-confirmation', paymentMethod: 'manual' | 'online', depositId?: string) => {
         if (!event) throw new Error("Event data not available");
 
         const latestEvent = await getEventById(event.id);
@@ -245,43 +251,35 @@ export default function BuyTicketPage() {
         setPaymentStatus('pending');
 
         try {
-            // First, create the ticket in a pending state with a unique ID
-            const tempTicketId = uuidv4().toUpperCase();
-            const { pin } = await createTicketInDb('pending', 'online', tempTicketId);
-            
-            // If event currency is MWK, use totalCost directly. Otherwise, convert from USD.
-            const amountInLocalCurrency = event.currency === 'MWK' 
-                ? totalCost 
-                : convertCurrency(totalCost, 'MWK', organizerProfile?.exchangeRates);
-            
-            // Now, initiate payment with PawaPay, using the ticket ID as the deposit ID
+            const tempDepositId = uuidv4().toUpperCase();
+
+            // If event currency is MWK, use totalCost directly.
+            const amountInLocalCurrency = event.currency === 'MWK' ? totalCost : totalCost; // Assume other currencies are handled or converted before this point
+
             const result = await initiateDeposit({
-                depositIdOverride: tempTicketId,
+                depositIdOverride: tempDepositId,
                 amount: amountInLocalCurrency.toString(),
-                currency: 'MWK', // Always use MWK for this PawaPay integration
+                currency: 'MWK', // PawaPay for this integration expects MWK
                 country: 'MWI',
                 correspondent: selectedProvider.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
                 metadata: {
                     type: 'ticket_purchase',
-                    ticketId: tempTicketId,
                     eventId: event.id,
-                    totalCost: totalCost
                 }
             });
 
             if (result.success && result.depositId) {
                 setDepositId(result.depositId); // Start polling
-                sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ ticketId: result.depositId, pin, eventId: event.id, depositId: result.depositId }));
             } else {
                 setPaymentStatus('failed');
-                toast({ variant: 'destructive', title: 'Payment Failed', description: result.message });
+                toast({ variant: 'destructive', title: 'Payment Failed', description: result.message || 'Could not initiate payment.' });
                 setIsPurchasing(false);
             }
         } catch (error: any) {
             setPaymentStatus('failed');
-            toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message || 'Could not create your ticket.' });
+            toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message || 'An error occurred during payment initiation.' });
             setIsPurchasing(false);
         }
     }
@@ -328,9 +326,7 @@ export default function BuyTicketPage() {
 
     const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'online' && (!selectedProvider || !phone));
 
-    const amountInLocalCurrency = event.currency === 'MWK' 
-                ? totalCost 
-                : convertCurrency(totalCost, 'MWK', organizerProfile?.exchangeRates);
+    const amountInLocalCurrency = event.currency === 'MWK' ? totalCost : totalCost;
 
 
     return (
