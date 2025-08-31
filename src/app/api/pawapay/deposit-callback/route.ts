@@ -2,11 +2,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { upgradeUserPlan } from '@/services/userService';
-import { addTicket } from '@/services/ticketService';
+import { confirmTicketPayment } from '@/services/ticketService';
 import type { PlanId } from '@/lib/plans';
-import type { OmitIdTicket } from '@/lib/types';
-import { doc, updateDoc, increment } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,32 +25,10 @@ export async function POST(request: NextRequest) {
         await upgradeUserPlan(metadata.userId, metadata.planId as PlanId);
         console.log(`User ${metadata.userId} successfully upgraded.`);
 
-      } else if (transactionType === 'ticket_purchase' && metadata.eventId && metadata.ticketId) {
-        console.log(`Processing successful ticket purchase for event ${metadata.eventId}`);
-        
-        const newTicket: OmitIdTicket & {id: string} = {
-            id: metadata.ticketId,
-            eventId: metadata.eventId,
-            holderName: metadata.holderName,
-            holderEmail: metadata.holderEmail,
-            holderPhone: metadata.holderPhone,
-            holderPhotoUrl: metadata.holderPhotoUrl,
-            pin: metadata.pin,
-            ticketType: metadata.ticketType,
-            benefits: metadata.benefits,
-            status: 'active',
-            holderTitle: '',
-            backgroundImageUrl: metadata.backgroundImageUrl,
-            backgroundImageOpacity: metadata.backgroundImageOpacity,
-            totalPaid: metadata.totalPaid,
-            paymentMethod: 'online',
-            paymentStatus: 'completed',
-        };
-
-        // Create the ticket and increment the event count
-        await addTicket(newTicket);
-        
-        console.log(`Ticket ${metadata.ticketId} created successfully.`);
+      } else if (transactionType === 'ticket_purchase' && metadata.ticketId) {
+        console.log(`Processing successful payment for ticket ${metadata.ticketId}`);
+        await confirmTicketPayment(metadata.ticketId);
+        console.log(`Ticket ${metadata.ticketId} payment confirmed successfully.`);
 
       } else {
          console.warn("Callback successful but metadata is missing or invalid for processing.", metadata);

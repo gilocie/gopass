@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { PLANS, PlanId } from '@/lib/plans';
-import { initiateDeposit, getCountryConfig, checkDepositStatus } from '@/services/pawaPayService';
+import { initiatePlanUpgradeDeposit, getCountryConfig, checkDepositStatus } from '@/services/pawaPayService';
 import { ArrowLeft, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { upgradeUserPlan } from '@/services/userService';
@@ -107,18 +107,15 @@ export default function PaymentPage() {
         setIsProcessing(true);
         
         try {
-            const result = await initiateDeposit({
+            const result = await initiatePlanUpgradeDeposit({
                 amount: priceInLocalCurrency.toString(),
                 currency: 'MWK',
                 country: 'MWI',
                 correspondent: selectedProvider.provider,
                 customerPhone: `${countryPrefix}${phoneNumber.replace(/^0+/, '')}`,
                 statementDescription: `GoPass ${plan.name} Plan`,
-                metadata: {
-                    type: 'plan_upgrade',
-                    userId: user.uid,
-                    planId: planId,
-                }
+                userId: user.uid,
+                planId: planId,
             });
             
             if (result.success && result.depositId) {

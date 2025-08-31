@@ -22,14 +22,28 @@ export interface PawaPayCountryConfig {
     providers: PawaPayProvider[];
 }
 
-interface DepositPayload {
+interface BaseDepositPayload {
     amount: string;
     currency: string;
     country: 'MWI';
     correspondent: string;
     customerPhone: string;
     statementDescription: string;
-    metadata?: Record<string, any>;
+}
+
+interface PlanDepositPayload extends BaseDepositPayload {
+    metadata: {
+        type: 'plan_upgrade';
+        userId: string;
+        planId: string;
+    };
+}
+
+interface TicketDepositPayload extends BaseDepositPayload {
+    metadata: {
+        type: 'ticket_purchase';
+        ticketId: string;
+    };
 }
 
 
@@ -88,12 +102,8 @@ export const getCountryConfig = async (countryCode: 'MWI'): Promise<PawaPayCount
     }
 }
 
-
-/**
- * Initiates a deposit using the v1 API structure.
- */
-export const initiateDeposit = async (payload: DepositPayload): Promise<{ success: boolean; message: string; depositId?: string; }> => {
-    if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
+const createDeposit = async (payload: PlanDepositPayload | TicketDepositPayload): Promise<{ success: boolean; message: string; depositId?: string; }> => {
+     if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
         return { success: false, message: "Payment service is not configured." };
     }
 
@@ -116,7 +126,7 @@ export const initiateDeposit = async (payload: DepositPayload): Promise<{ succes
             },
             customerTimestamp,
             statementDescription: payload.statementDescription,
-            metadata: payload.metadata || {}
+            metadata: payload.metadata
         };
         
         const depositApiResponse = await fetch(`${PAWAPAY_BASE_URL}/deposits`, {
@@ -142,7 +152,37 @@ export const initiateDeposit = async (payload: DepositPayload): Promise<{ succes
         console.error("Error during payment process:", error);
         return { success: false, message: "An unexpected server error occurred." };
     }
+}
+
+/**
+ * Initiates a deposit for a plan upgrade.
+ */
+export const initiatePlanUpgradeDeposit = async (payload: Omit<PlanDepositPayload, 'metadata'> & {userId: string, planId: string}) => {
+    const fullPayload: PlanDepositPayload = {
+        ...payload,
+        metadata: {
+            type: 'plan_upgrade',
+            userId: payload.userId,
+            planId: payload.planId,
+        }
+    };
+    return createDeposit(fullPayload);
+}
+
+/**
+ * Initiates a deposit for a ticket purchase.
+ */
+export const initiateTicketDeposit = async (payload: Omit<TicketDepositPayload, 'metadata'> & {ticketId: string}) => {
+    const fullPayload: TicketDepositPayload = {
+        ...payload,
+        metadata: {
+            type: 'ticket_purchase',
+            ticketId: payload.ticketId,
+        }
+    };
+    return createDeposit(fullPayload);
 };
+
 
 /**
  * Checks the status of a deposit transaction.
