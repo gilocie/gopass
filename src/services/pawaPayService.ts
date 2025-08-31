@@ -150,7 +150,7 @@ export const initiatePlanUpgradeDeposit = async (payload: {
  * Creates a temporary ticket and initiates a PawaPay deposit.
  */
 export const initiateTicketDeposit = async (payload: {
-    amount: number;
+    amount: string;
     currency: string;
     country: 'MWI';
     correspondent: string;
@@ -171,23 +171,17 @@ export const initiateTicketDeposit = async (payload: {
             status: 'active', // It's active but payment is pending
             paymentMethod: 'online',
             paymentStatus: 'pending',
-            holderTitle: '',
-            backgroundImageUrl: '', // These can be defaults or from event template later
-            backgroundImageOpacity: 0.1,
+            holderTitle: '', // Default value
         };
         const ticketId = await addTicket(tempTicketData);
 
-        // Step 2: Initiate PawaPay deposit with minimal data
+        // Step 2: Initiate PawaPay deposit
         const depositId = uuidv4().toUpperCase();
         
-        // PawaPay for Malawi requires MWK. Assume if currency isn't MWK, it's an error for now.
-        const paymentCurrency = "MWK";
-        const paymentAmount = payload.amount.toFixed(2);
-
         const requestBody = {
             depositId,
-            amount: paymentAmount,
-            currency: paymentCurrency,
+            amount: payload.amount,
+            currency: "MWK", // PawaPay Malawi requires MWK
             country: payload.country,
             correspondent: payload.correspondent,
             payer: { type: "MSISDN", address: { value: payload.customerPhone } },
@@ -196,6 +190,7 @@ export const initiateTicketDeposit = async (payload: {
             metadata: {
                 type: 'ticket_purchase',
                 ticketId: ticketId,
+                pin: newPin, // Pass the PIN in metadata to return to user on success
             }
         };
 

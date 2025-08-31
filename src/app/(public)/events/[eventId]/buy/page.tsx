@@ -17,7 +17,7 @@ import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info } from 'lu
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
-import { formatCurrency, currencies } from '@/lib/currency';
+import { formatCurrency, currencies, BASE_CURRENCY_CODE } from '@/lib/currency';
 import { getUserProfile } from '@/services/userService';
 import { PLANS } from '@/lib/plans';
 import { getOrganizerById } from '@/services/organizerService';
@@ -127,14 +127,16 @@ export default function BuyTicketPage() {
                     clearInterval(interval);
                     
                     const ticketId = deposit?.metadata?.ticketId;
-                    if (!ticketId) {
-                         throw new Error("Ticket ID not found in payment confirmation.");
+                    const pin = deposit?.metadata?.pin;
+
+                    if (!ticketId || !pin) {
+                         throw new Error("Ticket details not found in payment confirmation.");
                     }
                     
                     toast({ title: 'Success!', description: `Your ticket for ${event.name} is confirmed.` });
-                    // The callback will handle DB updates, we just need to redirect.
-                    // We can optimistically get the PIN from metadata if we add it, or fetch it. For now, let's just redirect.
-                     setTimeout(() => router.push(`/ticket/${ticketId}?eventId=${event.id}&fromPurchase=true`), 2000);
+                    
+                    sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId, pin }));
+                    router.push(`/events/${event.id}/success`);
 
                 } else if (status === 'FAILED' || status === 'REJECTED') {
                     setPaymentStatus('failed');
@@ -217,7 +219,7 @@ export default function BuyTicketPage() {
                 }));
             
             const result = await initiateTicketDeposit({
-                amount: totalCost,
+                amount: totalCost.toString(),
                 currency: event.currency,
                 country: 'MWI',
                 correspondent: selectedProvider.provider,
@@ -279,7 +281,7 @@ export default function BuyTicketPage() {
 
     const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'online' && (!selectedProvider || !phone));
 
-    const amountInLocalCurrency = event.currency === 'MWK' ? totalCost : totalCost;
+    const amountInLocalCurrency = totalCost;
 
 
     return (
