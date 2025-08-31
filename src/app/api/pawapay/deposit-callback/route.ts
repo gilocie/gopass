@@ -2,8 +2,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { upgradeUserPlan } from '@/services/userService';
-import { confirmTicketPayment } from '@/services/ticketService';
+import { addTicket, confirmTicketPayment } from '@/services/ticketService';
 import type { PlanId } from '@/lib/plans';
+import type { OmitIdTicket } from '@/lib/types';
+import { stripUndefined } from '@/lib/utils';
+import { serverTimestamp } from 'firebase/firestore';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid callback data' }, { status: 400 });
     }
     
-    const { status, metadata } = callbackData;
+    const { status, metadata, depositId } = callbackData;
 
     if (status === 'SUCCESSFUL') {
       const transactionType = metadata?.type || 'unknown';
@@ -27,6 +30,7 @@ export async function POST(request: NextRequest) {
 
       } else if (transactionType === 'ticket_purchase' && metadata.ticketId) {
         console.log(`Processing successful payment for ticket ${metadata.ticketId}`);
+        // The ticket now exists, we just need to confirm its payment
         await confirmTicketPayment(metadata.ticketId);
         console.log(`Ticket ${metadata.ticketId} payment confirmed successfully.`);
 
