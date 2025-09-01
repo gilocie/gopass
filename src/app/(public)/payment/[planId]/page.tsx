@@ -48,7 +48,6 @@ export default function PaymentPage() {
         const interval = setInterval(async () => {
             try {
                 const { status } = await checkDepositStatus(depositId);
-                
                 if (status === 'COMPLETED') {
                     setPaymentStatus('success');
                     // The callback now handles the upgrade, but we can optimistically show success
