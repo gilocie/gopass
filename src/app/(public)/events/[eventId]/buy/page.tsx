@@ -25,9 +25,8 @@ import { cn } from '@/lib/utils';
 import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { createFinalTicket } from '@/services/ticketService';
+import { addTicket } from '@/services/ticketService';
 import type { PawaPayProvider } from '@/services/pawaPayService';
-import { uploadFileFromServer } from '@/services/storageService';
 
 
 export default function BuyTicketPage() {
@@ -49,7 +48,6 @@ export default function BuyTicketPage() {
     const [photoUrl, setPhotoUrl] = React.useState('');
     const [selectedBenefits, setSelectedBenefits] = React.useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('online');
-    const [phonePlaceholder, setPhonePlaceholder] = React.useState('991234567');
 
     // Online Payment State
     const [paymentStatus, setPaymentStatus] = React.useState<'idle' | 'pending' | 'success' | 'failed'>('idle');
@@ -58,6 +56,7 @@ export default function BuyTicketPage() {
     const [loadingProviders, setLoadingProviders] = React.useState(true);
     const [selectedProvider, setSelectedProvider] = React.useState<PawaPayProvider | null>(null);
     const [countryPrefix, setCountryPrefix] = React.useState('');
+    const [phonePlaceholder, setPhonePlaceholder] = React.useState('991234567');
     
     // Cropper State
     const [imageToCrop, setImageToCrop] = React.useState<string | null>(null);
@@ -133,8 +132,6 @@ export default function BuyTicketPage() {
                     if (!ticketId || !pin) {
                          throw new Error("Ticket details not found in payment confirmation.");
                     }
-
-                    // No need to create ticket here, it's done via callback
                     
                     toast({ title: 'Success!', description: `Your ticket for ${event.name} is confirmed.` });
                     
@@ -199,57 +196,65 @@ export default function BuyTicketPage() {
         }
 
         setIsPurchasing(true);
-        setPaymentStatus('pending');
         
-        try {
-            const benefitsForTicket: Benefit[] = (event.benefits || [])
-                .filter(b => selectedBenefits.includes(b.id))
-                .map((b: EventBenefit) => ({
-                    id: b.id, name: b.name, used: false,
-                    startTime: b.startTime ?? '', endTime: b.endTime ?? '',
-                    days: Array.isArray(b.days) && b.days.length ? b.days : [1],
-                }));
+        const benefitsForTicket: Benefit[] = (event.benefits || [])
+            .filter(b => selectedBenefits.includes(b.id))
+            .map((b: EventBenefit) => ({
+                id: b.id, name: b.name, used: false,
+                startTime: b.startTime ?? '', endTime: b.endTime ?? '',
+                days: Array.isArray(b.days) && b.days.length ? b.days : [1],
+            }));
 
-            const ticketData: Omit<OmitIdTicket, 'pin'> = {
-                eventId: event.id,
-                holderName: fullName,
-                holderEmail: email,
-                holderPhone: phone || '',
-                holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
-                holderTitle: '',
-                ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-                benefits: benefitsForTicket,
-                totalPaid: totalCost,
-                paymentMethod: paymentMethod,
-                paymentStatus: 'pending',
-                status: 'active'
-            };
+        const ticketData: Omit<OmitIdTicket, 'pin'> = {
+            eventId: event.id,
+            holderName: fullName,
+            holderEmail: email,
+            holderPhone: phone || '',
+            holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+            holderTitle: '',
+            ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+            benefits: benefitsForTicket,
+            totalPaid: totalCost,
+            paymentMethod: paymentMethod,
+            paymentStatus: paymentMethod === 'manual' ? 'pending' : 'pending',
+            status: 'active'
+        };
 
-            const payloadToServer = {
-                amount: totalCost.toString(),
-                currency: "MWK",
-                country: "MWI",
-                correspondent: selectedProvider!.provider,
-                customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
-                statementDescription: `Ticket for ${event.name}`.substring(0, 25),
-                ticketData: ticketData
-            };
-            
-            console.log("Payload being sent to server action:", payloadToServer);
+        if (paymentMethod === 'manual') {
+             try {
+                const { ticketId, pin } = await addTicket(ticketData);
+                sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId, pin }));
+                router.push(`/events/${event.id}/success`);
+             } catch (error: any) {
+                console.error("Manual Purchase Error:", error);
+                toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message || 'An unexpected error occurred.' });
+                setIsPurchasing(false);
+             }
+        } else { // Online Payment
+            setPaymentStatus('pending');
+            try {
+                const result = await initiateTicketDeposit({
+                    amount: totalCost.toString(),
+                    currency: "MWK",
+                    country: "MWI",
+                    correspondent: selectedProvider!.provider,
+                    customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
+                    statementDescription: `Ticket for ${event.name}`.substring(0, 25),
+                    ticketData: ticketData
+                });
 
-            const result = await initiateTicketDeposit(payloadToServer);
-
-            if (result.success && result.depositId) {
-                setDepositId(result.depositId);
-            } else {
+                if (result.success && result.depositId) {
+                    setDepositId(result.depositId);
+                } else {
+                    setPaymentStatus('failed');
+                    toast({ variant: 'destructive', title: 'Payment Failed', description: result.message || 'Could not initiate payment.' });
+                    setIsPurchasing(false);
+                }
+            } catch (error: any) {
                 setPaymentStatus('failed');
-                toast({ variant: 'destructive', title: 'Payment Failed', description: result.message || 'Could not initiate payment.' });
+                toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message || 'An unexpected server error occurred.' });
                 setIsPurchasing(false);
             }
-        } catch (error: any) {
-            setPaymentStatus('failed');
-            toast({ variant: 'destructive', title: 'Purchase Failed', description: error.message || 'An unexpected server error occurred.' });
-            setIsPurchasing(false);
         }
     }
     
@@ -322,7 +327,7 @@ export default function BuyTicketPage() {
                                 <div className="flex items-center gap-4">
                                     <Avatar className="h-24 w-24">
                                         <AvatarImage src={photoUrl} alt={fullName} />
-                                        <AvatarFallback>?</AvatarFallback>
+                                        <AvatarFallback>{fullName ? fullName.split(' ').map(n => n[0]).join('') : '?'}</AvatarFallback>
                                     </Avatar>
                                     <div className="grid gap-1.5 flex-grow">
                                         <Label htmlFor="photo">Ticket Holder's Photo</Label>
@@ -391,7 +396,7 @@ export default function BuyTicketPage() {
                                         <RadioGroupItem value="online" id="online" className="peer sr-only" />
                                         <Label htmlFor="online" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
                                             <Smartphone className="mb-3 h-6 w-6" />
-                                            Mobile Money
+                                            Online (Mobile Money)
                                         </Label>
                                     </div>
                                     {hasManualOptions && (

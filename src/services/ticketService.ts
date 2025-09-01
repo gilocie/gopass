@@ -31,13 +31,13 @@ export const addTicket = async (ticket: Omit<OmitIdTicket, 'pin'>): Promise<{tic
         const ticketWithDetails: OmitIdTicket = {
             ...ticket,
             pin,
-            createdAt: new Date(), // Use client-side date for pending tickets
+            createdAt: new Date(),
         };
 
         const ticketDocRef = doc(db, 'tickets', ticketId);
         await setDoc(ticketDocRef, stripUndefined(ticketWithDetails));
         
-        // For manually created tickets, increment the count immediately
+        // For manually created tickets that are auto-approved, increment the count immediately
         if (ticket.paymentMethod === 'manual' && ticket.paymentStatus === 'completed') {
             const eventDocRef = doc(db, 'events', ticket.eventId);
             await updateDoc(eventDocRef, {
@@ -60,7 +60,6 @@ export const addTicket = async (ticket: Omit<OmitIdTicket, 'pin'>): Promise<{tic
 export const createFinalTicket = async (ticketId: string, ticketData: OmitIdTicket) => {
     const ticketDocRef = doc(db, 'tickets', ticketId);
     
-    // Check if the ticket already exists to avoid duplicate processing
     const docSnap = await getDoc(ticketDocRef);
     if (docSnap.exists() && docSnap.data().paymentStatus === 'completed') {
         console.log(`Ticket ${ticketId} already marked as completed. Skipping.`);
@@ -71,12 +70,11 @@ export const createFinalTicket = async (ticketId: string, ticketData: OmitIdTick
         ...ticketData,
         id: ticketId,
         paymentStatus: 'completed',
-        createdAt: serverTimestamp(), // Set the creation time on success
+        createdAt: serverTimestamp(),
     };
 
     await setDoc(ticketDocRef, stripUndefined(finalTicketData), { merge: true });
 
-    // Increment the ticketsIssued count on the event
     const eventDocRef = doc(db, 'events', ticketData.eventId);
     await updateDoc(eventDocRef, {
         ticketsIssued: increment(1)
@@ -87,14 +85,14 @@ export const createFinalTicket = async (ticketId: string, ticketData: OmitIdTick
 // Get a single ticket by ID
 export const getTicketById = async (ticketId: string): Promise<Ticket | null> => {
     try {
-        const ticketDoc = doc(db, 'tickets', ticketId); // Correct path
+        const ticketDoc = doc(db, 'tickets', ticketId); 
         const docSnap = await getDoc(ticketDoc);
         if (docSnap.exists()) {
             const data = docSnap.data();
             return { 
                 id: docSnap.id, 
                 ...data,
-                createdAt: toDate(data.createdAt) ?? new Date() // Fallback to current date
+                createdAt: toDate(data.createdAt) ?? new Date() 
             } as Ticket;
         }
         return null;
@@ -198,7 +196,6 @@ export const confirmTicketPayment = async (ticketId: string) => {
                 status: 'active'
             });
             
-            // Now that payment is confirmed, increment the event's ticket count
             const eventDocRef = doc(db, 'events', ticket.eventId);
             await updateDoc(eventDocRef, {
                 ticketsIssued: increment(1)
@@ -219,7 +216,6 @@ export const deleteTicket = async (ticketId: string) => {
             const eventDocRef = doc(db, 'events', ticket.eventId);
             const eventDocSnap = await getDoc(eventDocRef);
             
-            // Only decrement if the ticket was confirmed and counted
             if (eventDocSnap.exists() && ticket.paymentStatus === 'completed') {
                 const currentCount = eventDocSnap.data().ticketsIssued || 0;
                 if (currentCount > 0) {
@@ -311,5 +307,3 @@ export const useRealtimeTickets = (count: number) => {
 
     return { tickets, loading };
 }
-
-    
