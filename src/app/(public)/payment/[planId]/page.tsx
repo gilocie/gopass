@@ -48,9 +48,10 @@ export default function PaymentPage() {
         const interval = setInterval(async () => {
             try {
                 const { status } = await checkDepositStatus(depositId);
+                
                 if (status === 'COMPLETED') {
                     setPaymentStatus('success');
-                    // The callback now handles the upgrade
+                    // The callback now handles the upgrade, but we can optimistically show success
                     toast({ title: 'Success!', description: `You have been upgraded to the ${plan.name} plan.` });
                     clearInterval(interval);
                     setTimeout(() => router.push('/dashboard'), 2000);
@@ -58,15 +59,16 @@ export default function PaymentPage() {
                     setPaymentStatus('failed');
                     toast({ variant: 'destructive', title: 'Payment Failed', description: 'Your transaction could not be completed.' });
                     clearInterval(interval);
+                    setIsProcessing(false);
                 }
             } catch (error) {
                 console.error("Polling error:", error);
             }
-        }, 5000);
+        }, 5000); // Poll every 5 seconds
 
         return () => clearInterval(interval);
 
-    }, [paymentStatus, depositId, user, planId, router, toast, plan.name]);
+    }, [paymentStatus, depositId, router, toast, plan.name]);
     
     // --- Fetch Providers ---
      React.useEffect(() => {
@@ -122,7 +124,7 @@ export default function PaymentPage() {
                 setDepositId(result.depositId);
             } else {
                 setPaymentStatus('failed');
-                toast({ variant: 'destructive', title: 'Payment Failed', description: result.message });
+                toast({ variant: 'destructive', title: 'Payment Failed', description: result.message || 'Could not initiate payment.' });
                 setIsProcessing(false);
             }
         } catch (error: any) {

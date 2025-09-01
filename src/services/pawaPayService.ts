@@ -116,6 +116,8 @@ export const initiateTicketDeposit = async (payload: {
                 type: 'ticket_purchase',
                 ticketId: ticketId,
                 pin: pin,
+                 // Pass full ticket data in metadata for the callback
+                ...payload.ticketData
             }
         };
 
