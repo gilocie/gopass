@@ -37,7 +37,7 @@ const PAWAPAY_API_TOKEN = process.env.PAWAPAY_API_TOKEN;
 // --- SERVER ACTIONS ---
 
 /**
- * Fetches the active payment configuration for Malawi.
+ * Fetches the active payment configuration for a country.
  */
 export const getCountryConfig = async (countryCode: 'MWI'): Promise<PawaPayCountryConfig | null> => {
     if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
@@ -157,10 +157,7 @@ export const initiateTicketDeposit = async (payload: {
 
     try {
         // Step 1: Create temporary ticket in Firestore with PENDING status
-        const { ticketId, pin } = await addTicket({
-            ...payload.ticketData,
-            paymentStatus: 'pending',
-        });
+        const { ticketId, pin } = await addTicket(payload.ticketData);
         
         const depositId = uuidv4().toUpperCase();
 

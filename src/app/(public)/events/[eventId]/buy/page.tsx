@@ -114,7 +114,6 @@ export default function BuyTicketPage() {
         fetchEventData();
     }, [eventId, router, toast]);
     
-    // --- Polling Logic for Online Payments ---
     React.useEffect(() => {
         if (paymentStatus !== 'pending' || !depositId || !event) {
             return;
@@ -198,33 +197,17 @@ export default function BuyTicketPage() {
         }
 
         setIsPurchasing(true);
-        
-        const benefitsForTicket: Benefit[] = (event.benefits || [])
-            .filter(b => selectedBenefits.includes(b.id))
-            .map((b: EventBenefit) => ({
-                id: b.id, name: b.name, used: false,
-                startTime: b.startTime ?? '', endTime: b.endTime ?? '',
-                days: Array.isArray(b.days) && b.days.length ? b.days : [1],
-            }));
-            
-        const ticketData: Omit<OmitIdTicket, 'pin'> = {
-            eventId: event.id,
-            holderName: fullName,
-            holderEmail: email,
-            holderPhone: phone || '',
-            holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
-            holderTitle: '',
-            ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-            benefits: benefitsForTicket,
-            totalPaid: totalCost,
-            paymentMethod: paymentMethod,
-            paymentStatus: paymentMethod === 'manual' ? 'completed' : 'pending',
-            status: 'active'
-        };
-        
         setPaymentStatus('pending');
         
         try {
+            const benefitsForTicket: Benefit[] = (event.benefits || [])
+                .filter(b => selectedBenefits.includes(b.id))
+                .map((b: EventBenefit) => ({
+                    id: b.id, name: b.name, used: false,
+                    startTime: b.startTime ?? '', endTime: b.endTime ?? '',
+                    days: Array.isArray(b.days) && b.days.length ? b.days : [1],
+                }));
+
             const payloadToServer = {
                 amount: totalCost.toString(),
                 currency: "MWK",
@@ -232,8 +215,23 @@ export default function BuyTicketPage() {
                 correspondent: selectedProvider!.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
-                ticketData: ticketData
+                ticketData: {
+                    eventId: event.id,
+                    holderName: fullName,
+                    holderEmail: email,
+                    holderPhone: phone || '',
+                    holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+                    holderTitle: '',
+                    ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+                    benefits: benefitsForTicket,
+                    totalPaid: totalCost,
+                    paymentMethod: paymentMethod,
+                    paymentStatus: 'pending',
+                    status: 'active'
+                } as Omit<OmitIdTicket, 'pin'>
             };
+            
+            console.log("Payload being sent to server action:", payloadToServer);
 
             const result = await initiateTicketDeposit(payloadToServer);
 
