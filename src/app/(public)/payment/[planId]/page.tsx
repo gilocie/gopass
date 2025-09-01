@@ -47,13 +47,16 @@ export default function PaymentPage() {
 
         const interval = setInterval(async () => {
             try {
-                const { status } = await checkDepositStatus(depositId);
+                const { status, deposit } = await checkDepositStatus(depositId);
                 if (status === 'COMPLETED') {
                     setPaymentStatus('success');
                     if(user) await upgradeUserPlan(user.uid, planId);
                     toast({ title: 'Success!', description: `You have been upgraded to the ${plan.name} plan.` });
                     clearInterval(interval);
-                    setTimeout(() => router.push('/dashboard'), 2000);
+                    setTimeout(() => {
+                        // Force a full page reload to ensure dashboard data is fresh
+                        window.location.href = '/dashboard';
+                    }, 2000);
                 } else if (status === 'FAILED' || status === 'REJECTED') {
                     setPaymentStatus('failed');
                     toast({ variant: 'destructive', title: 'Payment Failed', description: 'Your transaction could not be completed.' });
@@ -62,11 +65,14 @@ export default function PaymentPage() {
                 }
             } catch (error) {
                 console.error("Polling error:", error);
+                setPaymentStatus('failed');
+                toast({ variant: 'destructive', title: 'Payment Failed', description: 'An error occurred while checking payment status.' });
+                clearInterval(interval);
+                setIsProcessing(false);
             }
         }, 5000); // Poll every 5 seconds
 
         return () => clearInterval(interval);
-
     }, [paymentStatus, depositId, user, planId, router, toast, plan.name]);
     
     // --- Fetch Providers ---
@@ -76,10 +82,8 @@ export default function PaymentPage() {
             try {
                 const config = await getCountryConfig('MWI');
                 if (config) {
-                    setProviders(config.providers);
+                    setProviders(config.providers.filter(p => p.status === 'OPERATIONAL'));
                     setCountryPrefix(config.prefix);
-                } else {
-                    toast({ variant: 'destructive', title: 'Error', description: 'Could not load payment providers.' });
                 }
             } catch (error) {
                  toast({ variant: 'destructive', title: 'Error', description: 'Could not load payment providers.' });
@@ -239,5 +243,3 @@ export default function PaymentPage() {
         </div>
     );
 }
-
-    

@@ -47,6 +47,8 @@ import { BASE_CURRENCY_CODE, formatCurrency, currencies } from '@/lib/currency';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { ClientLoader } from '@/components/client-loader';
+import { onSnapshot, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -68,18 +70,29 @@ export default function DashboardPage() {
 
   React.useEffect(() => {
     if (user) {
-        const fetchUserData = async () => {
-            const profile = await getUserProfile(user.uid);
-            setUserProfile(profile);
-            const orgs = await getOrganizersByUserId(user.uid);
-            setUserOrganizations(orgs);
+        setAuthLoading(true);
+        const userDocRef = doc(db, 'users', user.uid);
+        const unsubscribe = onSnapshot(userDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                setUserProfile(docSnap.data() as UserProfile);
+            } else {
+                // If profile doesn't exist, create it.
+                const profile = await getUserProfile(user.uid);
+                setUserProfile(profile);
+            }
+            // Fetch organizations once after profile is set/fetched.
+            if (!userOrganizations.length) {
+              const orgs = await getOrganizersByUserId(user.uid);
+              setUserOrganizations(orgs);
+            }
             setAuthLoading(false);
-        };
-        fetchUserData();
+        });
+
+        return () => unsubscribe();
     } else {
       setAuthLoading(false);
     }
-  }, [user]);
+  }, [user, userOrganizations.length]);
 
   const upcomingEvents = events.filter(event => {
     const eventDate = new Date(event.startDate);
