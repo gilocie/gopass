@@ -1,3 +1,4 @@
+
 'use server';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -90,20 +91,26 @@ export const getCountryConfig = async (countryCode: 'MWI'): Promise<PawaPayCount
 
 /**
  * Initiates a PawaPay deposit for a ticket purchase.
- * It first creates a temporary ticket in Firestore, then initiates payment.
+ * DEBUG MODE: It first creates a ticket in Firestore, logs the would-be PawaPay payload,
+ * then immediately updates the ticket to 'completed' without calling PawaPay.
  */
-export const initiateTicketDeposit = async (payload: TicketDepositPayload): Promise<{ success: boolean; message: string; depositId?: string, ticketId?: string, pin?: string }> => {
+export const initiateTicketDeposit = async (payload: TicketDepositPayload): Promise<{ success: boolean; message: string; ticketId?: string; pin?: string }> => {
     if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
         return { success: false, message: "Payment service is not configured." };
     }
 
     try {
         // Step 1: Create the ticket in Firestore with PENDING status
-        const { ticketId, pin } = await addTicket(payload.ticketData);
+        // Pass 'pending' for online, 'awaiting-confirmation' for manual
+        const pendingTicketData = { ...payload.ticketData, paymentStatus: 'pending' as const };
+        const { ticketId, pin } = await addTicket(pendingTicketData);
+        
+        // **FIX**: Fetch the country prefix *before* using it.
+        const countryConfig = await getCountryConfig('MWI');
+        const countryPrefix = countryConfig?.prefix || '265';
         
         // Step 2: Construct the payload for PawaPay (FOR DEBUGGING)
         const formattedAmount = parseFloat(payload.amount).toFixed(2);
-        const countryPrefix = (await getCountryConfig('MWI'))?.prefix || '265';
         
         const requestBody = {
             amount: formattedAmount,
@@ -115,7 +122,11 @@ export const initiateTicketDeposit = async (payload: TicketDepositPayload): Prom
                 address: { value: `${countryPrefix}${payload.customerPhone.replace(/^0+/, '')}` }
             },
             customerTimestamp: new Date().toISOString(),
-            statementDescription: payload.statementDescription.substring(0, 25),
+            statementDescription: payload.statementDescription,
+            metadata: [
+                { fieldName: "ticketId", fieldValue: ticketId },
+                { fieldName: "pin", fieldValue: pin },
+            ]
         };
         
         // Step 3: Log the payload to the server console
