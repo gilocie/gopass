@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { createFinalTicket } from '@/services/ticketService';
+import { createFinalTicket, createPendingTicket, addTicket } from '@/services/ticketService';
 import type { PawaPayProvider } from '@/services/pawaPayService';
 
 
@@ -187,11 +187,12 @@ export default function BuyTicketPage() {
     
     const amountInLocalCurrency = React.useMemo(() => {
         if (!event) return 0;
+        // If event is priced in MWK, use totalCost directly.
         if (event.currency === 'MWK') return totalCost;
-        if (organizerProfile?.exchangeRates && organizerProfile.exchangeRates[event.currency]) {
-            return totalCost * organizerProfile.exchangeRates[event.currency];
-        }
-        return totalCost * 1750; // Fallback rate
+
+        // Otherwise, convert from USD (base) to MWK using exchange rates.
+        const rate = organizerProfile?.exchangeRates?.[event.currency] ?? 1750; // Fallback rate
+        return totalCost * rate;
     }, [totalCost, event, organizerProfile]);
 
     const handlePurchase = async () => {
@@ -199,43 +200,65 @@ export default function BuyTicketPage() {
             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please provide your full name and email.' });
             return;
         }
+        
         if (paymentMethod === 'online' && (!selectedProvider || !phone)) {
             toast({ variant: 'destructive', title: 'Missing Details', description: 'Please select a provider and enter your phone number.' });
             return;
         }
         setIsPurchasing(true);
+        
+        const benefitsForTicket: Benefit[] = (event.benefits || [])
+            .filter(b => selectedBenefits.includes(b.id))
+            .map((b: EventBenefit) => ({
+                id: b.id, name: b.name, used: false,
+                startTime: b.startTime ?? '', endTime: b.endTime ?? '',
+                days: Array.isArray(b.days) && b.days.length ? b.days : [1],
+            }));
+            
+        const ticketPayload = {
+            eventId: event.id,
+            holderName: fullName,
+            holderEmail: email,
+            holderPhone: phone || '',
+            holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+            holderTitle: '',
+            ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+            benefits: benefitsForTicket,
+            totalPaid: totalCost,
+            paymentMethod: paymentMethod,
+            paymentStatus: paymentMethod === 'manual' ? 'pending' : 'awaiting-confirmation',
+            status: 'active',
+        } as Omit<OmitIdTicket, 'pin'>;
+
+        if (paymentMethod === 'manual') {
+            try {
+                const newTicketId = await addTicket({ ...ticketPayload, pin: Math.floor(100000 + Math.random() * 900000).toString() });
+                toast({ title: 'Ticket Reserved!', description: 'Please follow the payment instructions on your ticket page.' });
+                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId: newTicketId, pin: (ticketPayload as any).pin }));
+                 router.push(`/events/${event.id}/success`);
+            } catch (error: any) {
+                toast({ variant: 'destructive', title: 'Reservation Failed', description: error.message });
+            } finally {
+                setIsPurchasing(false);
+            }
+            return;
+        }
+        
+        // Online Payment Flow
         setPaymentStatus('pending');
-
         try {
-            const benefitsForTicket: Benefit[] = (event.benefits || [])
-                .filter(b => selectedBenefits.includes(b.id))
-                .map((b: EventBenefit) => ({
-                    id: b.id, name: b.name, used: false,
-                    startTime: b.startTime ?? '', endTime: b.endTime ?? '',
-                    days: Array.isArray(b.days) && b.days.length ? b.days : [1],
-                }));
-
-            const result = await initiateTicketDeposit({
+             const payloadToServer = {
                 amount: amountInLocalCurrency.toString(),
-                currency: 'MWK',
-                country: 'MWI',
                 correspondent: selectedProvider!.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
-                // --- All ticket data is now passed in metadata ---
-                ticketData: {
-                    eventId: event.id,
-                    holderName: fullName,
-                    holderEmail: email,
-                    holderPhone: phone || '',
-                    holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
-                    holderTitle: '',
-                    ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-                    benefits: benefitsForTicket,
-                    totalPaid: totalCost,
-                    paymentMethod: 'online'
-                }
-            });
+                ticketData: ticketPayload
+            };
+
+            // THIS IS THE LOGGING YOU REQUESTED
+            console.log("Payload being sent to server action:", payloadToServer);
+
+            const result = await initiateTicketDeposit(payloadToServer);
 
             if (result.success && result.depositId) {
                 setDepositId(result.depositId);
