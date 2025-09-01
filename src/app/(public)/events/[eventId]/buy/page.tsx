@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { createFinalTicket, createPendingTicket } from '@/services/ticketService';
+import { createFinalTicket } from '@/services/ticketService';
 import type { PawaPayProvider } from '@/services/pawaPayService';
 import { uploadFileFromServer } from '@/services/storageService';
 
@@ -234,7 +234,7 @@ export default function BuyTicketPage() {
         if (paymentMethod === 'manual') {
             try {
                 // For manual, we can create the ticket directly.
-                const newTicketId = await createPendingTicket({
+                const newTicketId = await createFinalTicket({
                     ...ticketPayload,
                     paymentStatus: 'pending',
                     status: 'active'
