@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
@@ -205,23 +205,22 @@ export default function BuyTicketPage() {
                 days: Array.isArray(b.days) && b.days.length ? b.days : [1],
             }));
 
-        const ticketData: Omit<OmitIdTicket, 'pin'> = {
-            eventId: event.id,
-            holderName: fullName,
-            holderEmail: email,
-            holderPhone: phone || '',
-            holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
-            holderTitle: '',
-            ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-            benefits: benefitsForTicket,
-            totalPaid: totalCost,
-            paymentMethod: paymentMethod,
-            paymentStatus: paymentMethod === 'manual' ? 'pending' : 'pending',
-            status: 'active'
-        };
-
         if (paymentMethod === 'manual') {
              try {
+                const ticketData: Omit<OmitIdTicket, 'pin'> = {
+                    eventId: event.id,
+                    holderName: fullName,
+                    holderEmail: email,
+                    holderPhone: phone || '',
+                    holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+                    holderTitle: '',
+                    ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+                    benefits: benefitsForTicket,
+                    totalPaid: totalCost,
+                    paymentMethod: 'manual',
+                    paymentStatus: 'pending',
+                    status: 'active'
+                };
                 const { ticketId, pin } = await addTicket(ticketData);
                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId, pin }));
                 router.push(`/events/${event.id}/success`);
@@ -234,13 +233,29 @@ export default function BuyTicketPage() {
             setPaymentStatus('pending');
             try {
                 const result = await initiateTicketDeposit({
+                    // PawaPay minimal payload
                     amount: totalCost.toString(),
                     currency: "MWK",
                     country: "MWI",
                     correspondent: selectedProvider!.provider,
                     customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                     statementDescription: `Ticket for ${event.name}`.substring(0, 25),
-                    ticketData: ticketData
+                    
+                    // Full ticket data for our database
+                    ticketData: {
+                        eventId: event.id,
+                        holderName: fullName,
+                        holderEmail: email,
+                        holderPhone: phone || '',
+                        holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+                        holderTitle: '',
+                        ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+                        benefits: benefitsForTicket,
+                        totalPaid: totalCost,
+                        paymentMethod: 'online',
+                        paymentStatus: 'pending',
+                        status: 'active'
+                    }
                 });
 
                 if (result.success && result.depositId) {
@@ -286,7 +301,7 @@ export default function BuyTicketPage() {
     const trainingBenefit = event.benefits?.find(b => b.id === 'benefit_training');
     const optionalBenefits = event.benefits?.filter(b => b.id !== 'benefit_training') || [];
 
-    const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'online' && (!selectedProvider || !phone));
+    const isPurchaseDisabled = isPurchasing || !canPurchase;
     
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -435,6 +450,16 @@ export default function BuyTicketPage() {
                                                 <Input id="phone-number" placeholder={phonePlaceholder} value={phone} onChange={(e) => setPhone(e.target.value)} className="pl-14" />
                                             </div>
                                         </div>
+                                         {selectedProvider && (totalCost < selectedProvider.minAmount || totalCost > selectedProvider.maxAmount) && (
+                                             <Alert variant="destructive">
+                                                <AlertCircle className="h-4 w-4" />
+                                                <AlertTitle>Amount Out of Range</AlertTitle>
+                                                <AlertDescription className="text-xs">
+                                                    The total amount of {formatCurrency(totalCost, currencies['MWK'])} is outside the allowed range for {selectedProvider.displayName}.
+                                                    ({formatCurrency(selectedProvider.minAmount, currencies['MWK'])} - {formatCurrency(selectedProvider.maxAmount, currencies['MWK'])})
+                                                </AlertDescription>
+                                            </Alert>
+                                         )}
                                     </div>
                                 )}
                                 {paymentMethod === 'manual' && hasManualOptions && (
@@ -522,3 +547,4 @@ export default function BuyTicketPage() {
         </div>
     );
 }
+

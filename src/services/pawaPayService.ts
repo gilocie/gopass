@@ -3,11 +3,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import type { OmitIdTicket } from '@/lib/types';
-import { addTicket } from '@/services/ticketService';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { stripUndefined } from '@/lib/utils';
-
+import { addTicket, createFinalTicket } from '@/services/ticketService';
 
 // --- TYPE DEFINITIONS ---
 
@@ -84,6 +80,67 @@ export const getCountryConfig = async (countryCode: 'MWI'): Promise<PawaPayCount
 }
 
 /**
+ * Initiates a PawaPay deposit for a ticket purchase.
+ * It first creates a temporary ticket in Firestore, then initiates payment.
+ */
+export const initiateTicketDeposit = async (payload: {
+    amount: string;
+    currency: 'MWK';
+    country: 'MWI';
+    correspondent: string;
+    customerPhone: string;
+    statementDescription: string;
+    ticketData: Omit<OmitIdTicket, 'pin'>;
+}) => {
+    if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
+        return { success: false, message: "Payment service is not configured." };
+    }
+
+    try {
+        // Step 1: Create temporary ticket in Firestore with PENDING status
+        const { ticketId, pin } = await addTicket(payload.ticketData);
+        
+        const depositId = uuidv4().toUpperCase();
+
+        // Step 2: Prepare a minimal, clean payload for PawaPay
+        const requestBody = {
+            depositId,
+            amount: payload.amount,
+            currency: payload.currency,
+            country: payload.country,
+            correspondent: payload.correspondent,
+            payer: { type: "MSISDN", address: { value: payload.customerPhone } },
+            customerTimestamp: new Date().toISOString(),
+            statementDescription: payload.statementDescription,
+            metadata: {
+                type: 'ticket_purchase',
+                ticketId: ticketId,
+                pin: pin,
+            }
+        };
+
+        const response = await fetch(`${PAWAPAY_BASE_URL}/deposits`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${PAWAPAY_API_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+
+        const responseData = await response.json();
+        if (!response.ok) {
+            console.error("PawaPay API Error (Ticket Purchase):", responseData);
+            // TODO: Optionally delete the pending ticket here if initiation fails
+            return { success: false, message: responseData.errorMessage || "Failed to initiate payment." };
+        }
+
+        return { success: true, message: "Payment initiated.", depositId };
+
+    } catch (error) {
+        console.error("Error in initiateTicketDeposit:", error);
+        return { success: false, message: "An unexpected server error occurred." };
+    }
+};
+
+/**
  * Initiates a deposit for a plan upgrade.
  */
 export const initiatePlanUpgradeDeposit = async (payload: {
@@ -138,65 +195,6 @@ export const initiatePlanUpgradeDeposit = async (payload: {
     }
 };
 
-/**
- * Initiates a PawaPay deposit for a ticket purchase.
- * It now creates a temporary ticket in Firestore first.
- */
-export const initiateTicketDeposit = async (payload: {
-    amount: string;
-    currency: 'MWK';
-    country: 'MWI';
-    correspondent: string;
-    customerPhone: string;
-    statementDescription: string;
-    ticketData: Omit<OmitIdTicket, 'pin'>;
-}) => {
-    if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
-        return { success: false, message: "Payment service is not configured." };
-    }
-
-    try {
-        // Step 1: Create temporary ticket in Firestore with PENDING status
-        const { ticketId, pin } = await addTicket(payload.ticketData);
-        
-        const depositId = uuidv4().toUpperCase();
-
-        // Step 2: Prepare a minimal, clean payload for PawaPay
-        const requestBody = {
-            depositId,
-            amount: payload.amount,
-            currency: payload.currency,
-            country: payload.country,
-            correspondent: payload.correspondent,
-            payer: { type: "MSISDN", address: { value: payload.customerPhone } },
-            customerTimestamp: new Date().toISOString(),
-            statementDescription: payload.statementDescription,
-            metadata: {
-                type: 'ticket_purchase',
-                ticketId: ticketId,
-                pin: pin,
-            }
-        };
-
-        const response = await fetch(`${PAWAPAY_BASE_URL}/deposits`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${PAWAPAY_API_TOKEN}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        const responseData = await response.json();
-        if (!response.ok) {
-            console.error("PawaPay API Error (Ticket Purchase):", responseData);
-            return { success: false, message: responseData.errorMessage || "Failed to initiate payment." };
-        }
-
-        return { success: true, message: "Payment initiated.", depositId };
-
-    } catch (error) {
-        console.error("Error in initiateTicketDeposit:", error);
-        return { success: false, message: "An unexpected server error occurred." };
-    }
-};
 
 /**
  * Checks the status of a deposit transaction.
