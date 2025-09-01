@@ -50,7 +50,7 @@ export default function PaymentPage() {
                 const { status } = await checkDepositStatus(depositId);
                 if (status === 'COMPLETED') {
                     setPaymentStatus('success');
-                    // The callback now handles the upgrade, but we can optimistically show success
+                    if(user) await upgradeUserPlan(user.uid, planId);
                     toast({ title: 'Success!', description: `You have been upgraded to the ${plan.name} plan.` });
                     clearInterval(interval);
                     setTimeout(() => router.push('/dashboard'), 2000);
@@ -67,7 +67,7 @@ export default function PaymentPage() {
 
         return () => clearInterval(interval);
 
-    }, [paymentStatus, depositId, router, toast, plan.name]);
+    }, [paymentStatus, depositId, user, planId, router, toast, plan.name]);
     
     // --- Fetch Providers ---
      React.useEffect(() => {
@@ -109,14 +109,14 @@ export default function PaymentPage() {
         
         try {
             const result = await initiatePlanUpgradeDeposit({
+                userId: user.uid,
+                planId: planId,
                 amount: priceInLocalCurrency.toString(),
                 currency: 'MWK',
                 country: 'MWI',
                 correspondent: selectedProvider.provider,
                 customerPhone: `${countryPrefix}${phoneNumber.replace(/^0+/, '')}`,
                 statementDescription: `GoPass ${plan.name} Plan`,
-                userId: user.uid,
-                planId: planId,
             });
             
             if (result.success && result.depositId) {
@@ -239,3 +239,5 @@ export default function PaymentPage() {
         </div>
     );
 }
+
+    

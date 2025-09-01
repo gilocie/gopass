@@ -2,8 +2,10 @@
 'use server';
 
 import { v4 as uuidv4 } from 'uuid';
+import type { PlanId } from '@/lib/plans';
 import type { OmitIdTicket } from '@/lib/types';
 import { addTicket, createFinalTicket } from '@/services/ticketService';
+
 
 // --- TYPE DEFINITIONS ---
 
@@ -23,6 +25,18 @@ export interface PawaPayCountryConfig {
     currency: string;
     providers: PawaPayProvider[];
 }
+
+interface PlanUpgradePayload {
+    userId: string;
+    planId: PlanId;
+    amount: string;
+    currency: 'MWK';
+    country: 'MWI';
+    correspondent: string; 
+    customerPhone: string;
+    statementDescription: string;
+}
+
 
 // --- API CONFIGURATION ---
 
@@ -79,6 +93,74 @@ export const getCountryConfig = async (countryCode: 'MWI'): Promise<PawaPayCount
     }
 }
 
+
+/**
+ * Initiates a PawaPay deposit for a plan upgrade.
+ */
+export const initiatePlanUpgradeDeposit = async (payload: PlanUpgradePayload): Promise<{ success: boolean; message: string; depositId?: string; }> => {
+    if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
+        return { success: false, message: "Payment service is not configured." };
+    }
+
+    try {
+        const depositId = uuidv4().toUpperCase();
+        
+        const requestBody = {
+            depositId,
+            amount: payload.amount,
+            currency: payload.currency,
+            country: payload.country,
+            correspondent: payload.correspondent,
+            payer: {
+                type: "MSISDN",
+                address: {
+                    value: payload.customerPhone
+                }
+            },
+            customerTimestamp: new Date().toISOString(),
+            statementDescription: payload.statementDescription,
+            metadata: [
+                {
+                    fieldName: "type",
+                    fieldValue: "plan_upgrade"
+                },
+                {
+                    fieldName: "userId",
+                    fieldValue: payload.userId
+                },
+                {
+                    fieldName: "planId",
+                    fieldValue: payload.planId
+                }
+            ]
+        };
+        
+        const depositApiResponse = await fetch(`${PAWAPAY_BASE_URL}/deposits`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${PAWAPAY_API_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        const responseData = await depositApiResponse.json();
+        
+        if (!depositApiResponse.ok || responseData.status === 'REJECTED') {
+            console.error("pawaPay API Error (Plan Upgrade):", JSON.stringify(responseData, null, 2));
+            const errorMessage = responseData.failureReason?.failureMessage || responseData.errorMessage || "Failed to initiate payment.";
+            return { success: false, message: errorMessage };
+        }
+        
+        return { success: true, message: "Payment initiated successfully.", depositId };
+
+    } catch (error) {
+        console.error("Error during plan upgrade payment:", error);
+        return { success: false, message: "An unexpected server error occurred." };
+    }
+};
+
+
 /**
  * Initiates a PawaPay deposit for a ticket purchase.
  * It first creates a temporary ticket in Firestore, then initiates payment.
@@ -112,13 +194,20 @@ export const initiateTicketDeposit = async (payload: {
             payer: { type: "MSISDN", address: { value: payload.customerPhone } },
             customerTimestamp: new Date().toISOString(),
             statementDescription: payload.statementDescription,
-            metadata: {
-                type: 'ticket_purchase',
-                ticketId: ticketId,
-                pin: pin,
-                 // Pass full ticket data in metadata for the callback
-                ...payload.ticketData
-            }
+            metadata: [
+                {
+                    fieldName: "type",
+                    fieldValue: "ticket_purchase"
+                },
+                {
+                    fieldName: "ticketId",
+                    fieldValue: ticketId
+                },
+                {
+                    fieldName: "pin",
+                    fieldValue: pin
+                }
+            ]
         };
 
         const response = await fetch(`${PAWAPAY_BASE_URL}/deposits`, {
@@ -130,7 +219,6 @@ export const initiateTicketDeposit = async (payload: {
         const responseData = await response.json();
         if (!response.ok) {
             console.error("PawaPay API Error (Ticket Purchase):", responseData);
-            // TODO: Optionally delete the pending ticket here if initiation fails
             return { success: false, message: responseData.errorMessage || "Failed to initiate payment." };
         }
 
@@ -138,61 +226,6 @@ export const initiateTicketDeposit = async (payload: {
 
     } catch (error) {
         console.error("Error in initiateTicketDeposit:", error);
-        return { success: false, message: "An unexpected server error occurred." };
-    }
-};
-
-/**
- * Initiates a deposit for a plan upgrade.
- */
-export const initiatePlanUpgradeDeposit = async (payload: {
-    amount: string;
-    currency: string;
-    country: 'MWI';
-    correspondent: string;
-    customerPhone: string;
-    statementDescription: string;
-    userId: string;
-    planId: string;
-}) => {
-     if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
-        return { success: false, message: "Payment service is not configured." };
-    }
-    
-    try {
-        const depositId = uuidv4().toUpperCase();
-        const requestBody = {
-            depositId,
-            amount: payload.amount,
-            currency: payload.currency,
-            country: payload.country,
-            correspondent: payload.correspondent,
-            payer: { type: "MSISDN", address: { value: payload.customerPhone } },
-            customerTimestamp: new Date().toISOString(),
-            statementDescription: payload.statementDescription,
-            metadata: {
-                type: 'plan_upgrade',
-                userId: payload.userId,
-                planId: payload.planId,
-            }
-        };
-
-        const response = await fetch(`${PAWAPAY_BASE_URL}/deposits`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${PAWAPAY_API_TOKEN}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        const responseData = await response.json();
-        if (!response.ok) {
-            console.error("PawaPay API Error (Plan Upgrade):", responseData);
-            return { success: false, message: responseData.errorMessage || "Failed to initiate payment." };
-        }
-        
-        return { success: true, message: "Payment initiated.", depositId };
-
-    } catch (error) {
-        console.error("Error in initiatePlanUpgradeDeposit:", error);
         return { success: false, message: "An unexpected server error occurred." };
     }
 };
@@ -229,3 +262,5 @@ export const checkDepositStatus = async (depositId: string): Promise<{ status: '
         throw error;
     }
 };
+
+    
