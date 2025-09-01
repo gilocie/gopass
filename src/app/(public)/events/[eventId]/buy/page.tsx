@@ -13,11 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info, Upload } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
-import { formatCurrency, currencies, BASE_CURRENCY_CODE } from '@/lib/currency';
+import { formatCurrency, currencies } from '@/lib/currency';
 import { getUserProfile } from '@/services/userService';
 import { getOrganizerById } from '@/services/organizerService';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { createFinalTicket } from '@/services/ticketService';
 import type { PawaPayProvider } from '@/services/pawaPayService';
 import { uploadFileFromServer } from '@/services/storageService';
 
@@ -61,7 +62,6 @@ export default function BuyTicketPage() {
     // Cropper State
     const [imageToCrop, setImageToCrop] = React.useState<string | null>(null);
     const [isCropperOpen, setIsCropperOpen] = React.useState(false);
-    const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false);
 
      React.useEffect(() => {
         const fetchProviders = async () => {
@@ -133,6 +133,8 @@ export default function BuyTicketPage() {
                     if (!ticketId || !pin) {
                          throw new Error("Ticket details not found in payment confirmation.");
                     }
+
+                    // No need to create ticket here, it's done via callback
                     
                     toast({ title: 'Success!', description: `Your ticket for ${event.name} is confirmed.` });
                     
@@ -208,6 +210,21 @@ export default function BuyTicketPage() {
                     days: Array.isArray(b.days) && b.days.length ? b.days : [1],
                 }));
 
+            const ticketData: Omit<OmitIdTicket, 'pin'> = {
+                eventId: event.id,
+                holderName: fullName,
+                holderEmail: email,
+                holderPhone: phone || '',
+                holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+                holderTitle: '',
+                ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+                benefits: benefitsForTicket,
+                totalPaid: totalCost,
+                paymentMethod: paymentMethod,
+                paymentStatus: 'pending',
+                status: 'active'
+            };
+
             const payloadToServer = {
                 amount: totalCost.toString(),
                 currency: "MWK",
@@ -215,20 +232,7 @@ export default function BuyTicketPage() {
                 correspondent: selectedProvider!.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
-                ticketData: {
-                    eventId: event.id,
-                    holderName: fullName,
-                    holderEmail: email,
-                    holderPhone: phone || '',
-                    holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
-                    holderTitle: '',
-                    ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-                    benefits: benefitsForTicket,
-                    totalPaid: totalCost,
-                    paymentMethod: paymentMethod,
-                    paymentStatus: 'pending',
-                    status: 'active'
-                } as Omit<OmitIdTicket, 'pin'>
+                ticketData: ticketData
             };
             
             console.log("Payload being sent to server action:", payloadToServer);
@@ -279,25 +283,6 @@ export default function BuyTicketPage() {
 
     const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'online' && (!selectedProvider || !phone));
     
-    const handleCropComplete = async (croppedImageBlob: Blob) => {
-        setIsUploadingPhoto(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', croppedImageBlob, 'profile.jpg');
-            formData.append('path', `attendee-photos/${Date.now()}_profile.jpg`);
-            const downloadURL = await uploadFileFromServer(formData);
-            setPhotoUrl(downloadURL);
-            toast({ title: 'Photo Uploaded', description: 'Your photo has been successfully uploaded.' });
-        } catch (error) {
-            console.error("Photo upload failed", error);
-            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload your photo.' });
-        } finally {
-            setIsUploadingPhoto(false);
-            setIsCropperOpen(false);
-            setImageToCrop(null);
-        }
-    };
-
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <Button variant="outline" size="sm" onClick={() => router.back()} className="mb-4">
@@ -337,9 +322,7 @@ export default function BuyTicketPage() {
                                 <div className="flex items-center gap-4">
                                     <Avatar className="h-24 w-24">
                                         <AvatarImage src={photoUrl} alt={fullName} />
-                                        <AvatarFallback className="relative">
-                                            {isUploadingPhoto ? <Loader2 className="animate-spin" /> : '?'}
-                                        </AvatarFallback>
+                                        <AvatarFallback>?</AvatarFallback>
                                     </Avatar>
                                     <div className="grid gap-1.5 flex-grow">
                                         <Label htmlFor="photo">Ticket Holder's Photo</Label>
@@ -519,7 +502,16 @@ export default function BuyTicketPage() {
                         setImageToCrop(null);
                     }}
                     imageSrc={imageToCrop}
-                    onCropComplete={handleCropComplete}
+                    onCropComplete={(croppedImageBlob) => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(croppedImageBlob); 
+                        reader.onloadend = function() {
+                            const base64data = reader.result;
+                            setPhotoUrl(base64data as string);
+                        }
+                        setIsCropperOpen(false);
+                        setImageToCrop(null);
+                    }}
                 />
             )}
         </div>
