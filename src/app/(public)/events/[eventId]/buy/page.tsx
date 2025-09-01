@@ -25,8 +25,8 @@ import { cn } from '@/lib/utils';
 import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { addTicket } from '@/services/ticketService';
 import type { PawaPayProvider } from '@/services/pawaPayService';
+import { uploadFileFromServer } from '@/services/storageService';
 
 
 export default function BuyTicketPage() {
@@ -61,6 +61,7 @@ export default function BuyTicketPage() {
     // Cropper State
     const [imageToCrop, setImageToCrop] = React.useState<string | null>(null);
     const [isCropperOpen, setIsCropperOpen] = React.useState(false);
+    const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false);
 
      React.useEffect(() => {
         const fetchProviders = async () => {
@@ -217,23 +218,9 @@ export default function BuyTicketPage() {
             benefits: benefitsForTicket,
             totalPaid: totalCost,
             paymentMethod: paymentMethod,
-            paymentStatus: 'pending',
+            paymentStatus: paymentMethod === 'manual' ? 'completed' : 'pending',
             status: 'active'
         };
-
-        if (paymentMethod === 'manual') {
-            try {
-                const newTicket = await addTicket(ticketData);
-                toast({ title: 'Ticket Reserved!', description: 'Please follow the payment instructions on your ticket page.' });
-                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId: newTicket.ticketId, pin: newTicket.pin }));
-                 router.push(`/events/${event.id}/success`);
-            } catch (error: any) {
-                toast({ variant: 'destructive', title: 'Reservation Failed', description: error.message });
-            } finally {
-                setIsPurchasing(false);
-            }
-            return;
-        }
         
         // Online Payment Flow
         setPaymentStatus('pending');
@@ -297,6 +284,25 @@ export default function BuyTicketPage() {
 
     const isPurchaseDisabled = isPurchasing || !canPurchase || (paymentMethod === 'online' && (!selectedProvider || !phone));
     
+    const handleCropComplete = async (croppedImageBlob: Blob) => {
+        setIsUploadingPhoto(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', croppedImageBlob, 'profile.jpg');
+            formData.append('path', `attendee-photos/${Date.now()}_profile.jpg`);
+            const downloadURL = await uploadFileFromServer(formData);
+            setPhotoUrl(downloadURL);
+            toast({ title: 'Photo Uploaded', description: 'Your photo has been successfully uploaded.' });
+        } catch (error) {
+            console.error("Photo upload failed", error);
+            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload your photo.' });
+        } finally {
+            setIsUploadingPhoto(false);
+            setIsCropperOpen(false);
+            setImageToCrop(null);
+        }
+    };
+
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <Button variant="outline" size="sm" onClick={() => router.back()} className="mb-4">
@@ -336,7 +342,9 @@ export default function BuyTicketPage() {
                                 <div className="flex items-center gap-4">
                                     <Avatar className="h-24 w-24">
                                         <AvatarImage src={photoUrl} alt={fullName} />
-                                        <AvatarFallback>{fullName ? fullName.split(' ').map(n => n[0]).join('') : '?'}</AvatarFallback>
+                                        <AvatarFallback className="relative">
+                                            {isUploadingPhoto ? <Loader2 className="animate-spin" /> : '?'}
+                                        </AvatarFallback>
                                     </Avatar>
                                     <div className="grid gap-1.5 flex-grow">
                                         <Label htmlFor="photo">Ticket Holder's Photo</Label>
@@ -516,15 +524,9 @@ export default function BuyTicketPage() {
                         setImageToCrop(null);
                     }}
                     imageSrc={imageToCrop}
-                    onCropComplete={(croppedImageUrl) => {
-                        setPhotoUrl(croppedImageUrl);
-                        setIsCropperOpen(false);
-                        setImageToCrop(null);
-                    }}
+                    onCropComplete={handleCropComplete}
                 />
             )}
         </div>
     );
 }
-
-    
