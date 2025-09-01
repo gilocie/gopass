@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, Smartphone, CheckCircle2, Info, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
@@ -25,9 +25,8 @@ import { cn } from '@/lib/utils';
 import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { createFinalTicket } from '@/services/ticketService';
+import { addTicket } from '@/services/ticketService';
 import type { PawaPayProvider } from '@/services/pawaPayService';
-import { uploadFileFromServer } from '@/services/storageService';
 
 
 export default function BuyTicketPage() {
@@ -47,7 +46,6 @@ export default function BuyTicketPage() {
     const [email, setEmail] = React.useState('');
     const [phone, setPhone] = React.useState('');
     const [photoUrl, setPhotoUrl] = React.useState('');
-    const [photoFile, setPhotoFile] = React.useState<File | null>(null);
     const [selectedBenefits, setSelectedBenefits] = React.useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('online');
     const [phonePlaceholder, setPhonePlaceholder] = React.useState('991234567');
@@ -162,7 +160,6 @@ export default function BuyTicketPage() {
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            setPhotoFile(file);
             const reader = new FileReader();
             reader.onload = (event) => {
                 setImageToCrop(event.target?.result as string);
@@ -187,14 +184,6 @@ export default function BuyTicketPage() {
             .filter(b => selectedBenefits.includes(b.id))
             .reduce((acc, b) => acc + (b.price || 0), 0);
     }, [event, selectedBenefits]);
-    
-    const amountInLocalCurrency = React.useMemo(() => {
-        if (!event) return 0;
-        if (event.currency === 'MWK') return totalCost;
-        
-        const rate = organizerProfile?.exchangeRates?.[event.currency] ?? 1750; 
-        return totalCost * rate;
-    }, [totalCost, event, organizerProfile]);
 
     const handlePurchase = async () => {
         if (!event || !fullName.trim() || !email.trim()) {
@@ -208,7 +197,6 @@ export default function BuyTicketPage() {
         }
 
         setIsPurchasing(true);
-        setPaymentStatus('pending');
         
         const benefitsForTicket: Benefit[] = (event.benefits || [])
             .filter(b => selectedBenefits.includes(b.id))
@@ -218,7 +206,7 @@ export default function BuyTicketPage() {
                 days: Array.isArray(b.days) && b.days.length ? b.days : [1],
             }));
             
-        const ticketPayload = {
+        const ticketData: Omit<OmitIdTicket, 'pin'> = {
             eventId: event.id,
             holderName: fullName,
             holderEmail: email,
@@ -229,22 +217,18 @@ export default function BuyTicketPage() {
             benefits: benefitsForTicket,
             totalPaid: totalCost,
             paymentMethod: paymentMethod,
+            paymentStatus: 'pending',
+            status: 'active'
         };
 
         if (paymentMethod === 'manual') {
             try {
-                // For manual, we can create the ticket directly.
-                const newTicketId = await createFinalTicket({
-                    ...ticketPayload,
-                    paymentStatus: 'pending',
-                    status: 'active'
-                });
+                const newTicket = await addTicket(ticketData);
                 toast({ title: 'Ticket Reserved!', description: 'Please follow the payment instructions on your ticket page.' });
-                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId: newTicketId.ticketId, pin: newTicketId.pin }));
+                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId: newTicket.ticketId, pin: newTicket.pin }));
                  router.push(`/events/${event.id}/success`);
             } catch (error: any) {
                 toast({ variant: 'destructive', title: 'Reservation Failed', description: error.message });
-                setPaymentStatus('failed');
             } finally {
                 setIsPurchasing(false);
             }
@@ -252,15 +236,17 @@ export default function BuyTicketPage() {
         }
         
         // Online Payment Flow
+        setPaymentStatus('pending');
+        
         try {
-             const payloadToServer = {
-                amount: amountInLocalCurrency.toString(),
+            const payloadToServer = {
+                amount: totalCost.toString(),
                 currency: "MWK",
                 country: "MWI",
                 correspondent: selectedProvider!.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
-                ticketData: ticketPayload
+                ticketData: ticketData
             };
             
             console.log("Payload being sent to server action:", payloadToServer);
@@ -324,7 +310,7 @@ export default function BuyTicketPage() {
                                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
                                 <h3 className="font-semibold text-lg">Awaiting Confirmation</h3>
                                 <p className="text-muted-foreground text-sm">
-                                    Please check your phone and enter your PIN to approve the payment of {formatCurrency(amountInLocalCurrency, currencies['MWK'])}.
+                                    Please check your phone and enter your PIN to approve the payment of {formatCurrency(totalCost, currencies['MWK'])}.
                                 </p>
                                 <Button variant="outline" onClick={() => { setPaymentStatus('idle'); setIsPurchasing(false); }}>Cancel</Button>
                             </CardContent>
@@ -540,3 +526,5 @@ export default function BuyTicketPage() {
         </div>
     );
 }
+
+    

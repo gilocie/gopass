@@ -3,7 +3,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import type { OmitIdTicket } from '@/lib/types';
-import { addTicket, getTicketById, updateTicket } from '@/services/ticketService';
+import { addTicket } from '@/services/ticketService';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { stripUndefined } from '@/lib/utils';
@@ -144,35 +144,27 @@ export const initiatePlanUpgradeDeposit = async (payload: {
  */
 export const initiateTicketDeposit = async (payload: {
     amount: string;
-    currency: string;
+    currency: 'MWK';
     country: 'MWI';
     correspondent: string;
     customerPhone: string;
     statementDescription: string;
-    ticketData: Omit<OmitIdTicket, 'pin' | 'status' | 'paymentStatus'>;
+    ticketData: Omit<OmitIdTicket, 'pin'>;
 }) => {
     if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
         return { success: false, message: "Payment service is not configured." };
     }
 
     try {
-        const depositId = uuidv4().toUpperCase();
-        const ticketId = uuidv4().toUpperCase();
-        const pin = Math.floor(100000 + Math.random() * 900000).toString();
-
         // Step 1: Create temporary ticket in Firestore with PENDING status
-        const tempTicket: OmitIdTicket & { id: string } = {
-            id: ticketId,
-            pin: pin,
+        const { ticketId, pin } = await addTicket({
             ...payload.ticketData,
-            status: 'active', // Is active but unusable until confirmed
             paymentStatus: 'pending',
-        };
+        });
+        
+        const depositId = uuidv4().toUpperCase();
 
-        const ticketDocRef = doc(db, 'tickets', ticketId);
-        await setDoc(ticketDocRef, stripUndefined(tempTicket));
-
-        // Step 2: Prepare and send request to PawaPay
+        // Step 2: Prepare a minimal, clean payload for PawaPay
         const requestBody = {
             depositId,
             amount: payload.amount,
@@ -185,7 +177,7 @@ export const initiateTicketDeposit = async (payload: {
             metadata: {
                 type: 'ticket_purchase',
                 ticketId: ticketId,
-                pin: pin, // Pass pin in metadata to be available on success
+                pin: pin,
             }
         };
 
@@ -198,6 +190,8 @@ export const initiateTicketDeposit = async (payload: {
         const responseData = await response.json();
         if (!response.ok) {
             console.error("PawaPay API Error (Ticket Purchase):", responseData);
+            // Optionally, delete the pending ticket if the payment initiation fails
+            // await deleteDoc(doc(db, 'tickets', ticketId));
             return { success: false, message: responseData.errorMessage || "Failed to initiate payment." };
         }
 
@@ -240,3 +234,5 @@ export const checkDepositStatus = async (depositId: string): Promise<{ status: '
         throw error;
     }
 };
+
+    

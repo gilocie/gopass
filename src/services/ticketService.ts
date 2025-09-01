@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, DocumentData, doc, updateDoc, increment, getDocs, getDoc, deleteDoc, orderBy, limit, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
 import type { OmitIdTicket, Ticket } from '@/lib/types';
 import { stripUndefined } from '@/lib/utils';
+import { v4 as uuidv4 } from 'uuid';
 
 const ticketsCollection = collection(db, 'tickets');
 
@@ -21,33 +22,30 @@ const toDate = (timestamp: Timestamp | Date | undefined): Date | undefined => {
 };
 
 
-// Create a new ticket
-export const addTicket = async (ticket: OmitIdTicket & {id?: string}): Promise<string> => {
+// Create a new ticket (used for manual creation and pending online payments)
+export const addTicket = async (ticket: Omit<OmitIdTicket, 'pin'>): Promise<{ticketId: string, pin: string}> => {
     try {
-        const ticketWithTimestamp = { ...ticket, createdAt: serverTimestamp() };
-        
-        // If an ID is passed in the ticket object (for online payments), use it
-        if ('id' in ticket && ticket.id) {
-            const ticketDocRef = doc(db, 'tickets', ticket.id);
-            await setDoc(ticketDocRef, stripUndefined(ticketWithTimestamp));
-             // For online payments, we wait for confirmation before incrementing
-            return ticket.id;
-        }
+        const ticketId = uuidv4().toUpperCase();
+        const pin = Math.floor(100000 + Math.random() * 900000).toString();
 
-        const docRef = await addDoc(ticketsCollection, stripUndefined(ticketWithTimestamp));
+        const ticketWithDetails: OmitIdTicket = {
+            ...ticket,
+            pin,
+            createdAt: new Date(), // Use client-side date for pending tickets
+        };
+
+        const ticketDocRef = doc(db, 'tickets', ticketId);
+        await setDoc(ticketDocRef, stripUndefined(ticketWithDetails));
         
-        // Increment the ticketsIssued count on the event if payment is already completed (e.g., organizer-created tickets)
-        if (ticket.paymentStatus === 'completed') {
+        // For manually created tickets, increment the count immediately
+        if (ticket.paymentMethod === 'manual' && ticket.paymentStatus === 'completed') {
             const eventDocRef = doc(db, 'events', ticket.eventId);
             await updateDoc(eventDocRef, {
                 ticketsIssued: increment(1)
             });
         }
         
-        if (!docRef.id) {
-            throw new Error("Document created without an ID.");
-        }
-        return docRef.id;
+        return { ticketId, pin };
 
     } catch (error) {
         console.error("Error adding ticket document: ", error);
@@ -163,7 +161,7 @@ export const getMostRecentTicketForEvent = async (eventId: string): Promise<Tick
 export const updateTicket = async (ticketId: string, ticket: Partial<Omit<Ticket, 'id' | 'eventId'>>) => {
     try {
         const ticketDoc = doc(db, 'tickets', ticketId);
-        await updateDoc(ticketDoc, ticket);
+        await updateDoc(ticketDoc, stripUndefined(ticket));
     } catch (error) {
         console.error("Error updating ticket document:", error);
         throw new Error("Could not update ticket");
@@ -313,3 +311,5 @@ export const useRealtimeTickets = (count: number) => {
 
     return { tickets, loading };
 }
+
+    
