@@ -22,11 +22,12 @@ import { getUserProfile } from '@/services/userService';
 import { getOrganizerById } from '@/services/organizerService';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
-import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayService';
+import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayTicketService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { addTicket } from '@/services/ticketService';
-import type { PawaPayProvider } from '@/services/pawaPayService';
+import type { PawaPayProvider } from '@/services/pawaPayTicketService';
+import { uploadFileFromServer } from '@/services/storageService';
 
 
 export default function BuyTicketPage() {
@@ -126,8 +127,13 @@ export default function BuyTicketPage() {
                     setPaymentStatus('success');
                     clearInterval(interval);
                     
-                    const ticketId = deposit?.metadata?.ticketId;
-                    const pin = deposit?.metadata?.pin;
+                    const metadata = deposit?.metadata?.reduce((acc: any, item: any) => {
+                        acc[item.fieldName] = item.fieldValue;
+                        return acc;
+                    }, {});
+
+                    const ticketId = metadata?.ticketId;
+                    const pin = metadata?.pin;
 
                     if (!ticketId || !pin) {
                          throw new Error("Ticket details not found in payment confirmation.");
@@ -204,23 +210,24 @@ export default function BuyTicketPage() {
                 startTime: b.startTime ?? '', endTime: b.endTime ?? '',
                 days: Array.isArray(b.days) && b.days.length ? b.days : [1],
             }));
+            
+        const ticketData: Omit<OmitIdTicket, 'pin'> = {
+            eventId: event.id,
+            holderName: fullName,
+            holderEmail: email,
+            holderPhone: phone || '',
+            holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
+            holderTitle: '',
+            ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
+            benefits: benefitsForTicket,
+            totalPaid: totalCost,
+            paymentMethod: paymentMethod,
+            paymentStatus: paymentMethod === 'manual' ? 'completed' : 'pending',
+            status: 'active'
+        };
 
         if (paymentMethod === 'manual') {
              try {
-                const ticketData: Omit<OmitIdTicket, 'pin'> = {
-                    eventId: event.id,
-                    holderName: fullName,
-                    holderEmail: email,
-                    holderPhone: phone || '',
-                    holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
-                    holderTitle: '',
-                    ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-                    benefits: benefitsForTicket,
-                    totalPaid: totalCost,
-                    paymentMethod: 'manual',
-                    paymentStatus: 'pending',
-                    status: 'active'
-                };
                 const { ticketId, pin } = await addTicket(ticketData);
                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId, pin }));
                 router.push(`/events/${event.id}/success`);
@@ -233,29 +240,13 @@ export default function BuyTicketPage() {
             setPaymentStatus('pending');
             try {
                 const result = await initiateTicketDeposit({
-                    // PawaPay minimal payload
                     amount: totalCost.toString(),
                     currency: "MWK",
                     country: "MWI",
                     correspondent: selectedProvider!.provider,
                     customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                     statementDescription: `Ticket for ${event.name}`.substring(0, 25),
-                    
-                    // Full ticket data for our database
-                    ticketData: {
-                        eventId: event.id,
-                        holderName: fullName,
-                        holderEmail: email,
-                        holderPhone: phone || '',
-                        holderPhotoUrl: photoUrl || `https://placehold.co/128x128.png`,
-                        holderTitle: '',
-                        ticketType: event.ticketTemplate?.ticketType || 'Standard Pass',
-                        benefits: benefitsForTicket,
-                        totalPaid: totalCost,
-                        paymentMethod: 'online',
-                        paymentStatus: 'pending',
-                        status: 'active'
-                    }
+                    ticketData: ticketData
                 });
 
                 if (result.success && result.depositId) {
@@ -532,19 +523,27 @@ export default function BuyTicketPage() {
                         setImageToCrop(null);
                     }}
                     imageSrc={imageToCrop}
-                    onCropComplete={(croppedImageBlob) => {
-                        const reader = new FileReader();
-                        reader.readAsDataURL(croppedImageBlob); 
-                        reader.onloadend = function() {
-                            const base64data = reader.result;
-                            setPhotoUrl(base64data as string);
-                        }
+                    onCropComplete={async (croppedImageBlob) => {
                         setIsCropperOpen(false);
                         setImageToCrop(null);
+                        
+                        const formData = new FormData();
+                        formData.append('file', croppedImageBlob);
+                        formData.append('path', `ticket-photos/${uuidv4()}`);
+
+                        try {
+                            const downloadURL = await uploadFileFromServer(formData);
+                            setPhotoUrl(downloadURL);
+                        } catch (error) {
+                            toast({
+                                variant: 'destructive',
+                                title: 'Upload Failed',
+                                description: 'Could not upload the cropped image.',
+                            });
+                        }
                     }}
                 />
             )}
         </div>
     );
 }
-
