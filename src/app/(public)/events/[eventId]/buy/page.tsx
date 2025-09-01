@@ -25,8 +25,9 @@ import { cn } from '@/lib/utils';
 import { getCountryConfig, initiateTicketDeposit, checkDepositStatus } from '@/services/pawaPayService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { createFinalTicket, createPendingTicket, addTicket } from '@/services/ticketService';
+import { createFinalTicket, createPendingTicket } from '@/services/ticketService';
 import type { PawaPayProvider } from '@/services/pawaPayService';
+import { uploadFileFromServer } from '@/services/storageService';
 
 
 export default function BuyTicketPage() {
@@ -46,6 +47,7 @@ export default function BuyTicketPage() {
     const [email, setEmail] = React.useState('');
     const [phone, setPhone] = React.useState('');
     const [photoUrl, setPhotoUrl] = React.useState('');
+    const [photoFile, setPhotoFile] = React.useState<File | null>(null);
     const [selectedBenefits, setSelectedBenefits] = React.useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('online');
     const [phonePlaceholder, setPhonePlaceholder] = React.useState('991234567');
@@ -160,6 +162,7 @@ export default function BuyTicketPage() {
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
+            setPhotoFile(file);
             const reader = new FileReader();
             reader.onload = (event) => {
                 setImageToCrop(event.target?.result as string);
@@ -187,11 +190,9 @@ export default function BuyTicketPage() {
     
     const amountInLocalCurrency = React.useMemo(() => {
         if (!event) return 0;
-        // If event is priced in MWK, use totalCost directly.
         if (event.currency === 'MWK') return totalCost;
-
-        // Otherwise, convert from USD (base) to MWK using exchange rates.
-        const rate = organizerProfile?.exchangeRates?.[event.currency] ?? 1750; // Fallback rate
+        
+        const rate = organizerProfile?.exchangeRates?.[event.currency] ?? 1750; 
         return totalCost * rate;
     }, [totalCost, event, organizerProfile]);
 
@@ -205,7 +206,9 @@ export default function BuyTicketPage() {
             toast({ variant: 'destructive', title: 'Missing Details', description: 'Please select a provider and enter your phone number.' });
             return;
         }
+
         setIsPurchasing(true);
+        setPaymentStatus('pending');
         
         const benefitsForTicket: Benefit[] = (event.benefits || [])
             .filter(b => selectedBenefits.includes(b.id))
@@ -226,18 +229,22 @@ export default function BuyTicketPage() {
             benefits: benefitsForTicket,
             totalPaid: totalCost,
             paymentMethod: paymentMethod,
-            paymentStatus: paymentMethod === 'manual' ? 'pending' : 'awaiting-confirmation',
-            status: 'active',
-        } as Omit<OmitIdTicket, 'pin'>;
+        };
 
         if (paymentMethod === 'manual') {
             try {
-                const newTicketId = await addTicket({ ...ticketPayload, pin: Math.floor(100000 + Math.random() * 900000).toString() });
+                // For manual, we can create the ticket directly.
+                const newTicketId = await createPendingTicket({
+                    ...ticketPayload,
+                    paymentStatus: 'pending',
+                    status: 'active'
+                });
                 toast({ title: 'Ticket Reserved!', description: 'Please follow the payment instructions on your ticket page.' });
-                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId: newTicketId, pin: (ticketPayload as any).pin }));
+                 sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId: newTicketId.ticketId, pin: newTicketId.pin }));
                  router.push(`/events/${event.id}/success`);
             } catch (error: any) {
                 toast({ variant: 'destructive', title: 'Reservation Failed', description: error.message });
+                setPaymentStatus('failed');
             } finally {
                 setIsPurchasing(false);
             }
@@ -245,17 +252,17 @@ export default function BuyTicketPage() {
         }
         
         // Online Payment Flow
-        setPaymentStatus('pending');
         try {
              const payloadToServer = {
                 amount: amountInLocalCurrency.toString(),
+                currency: "MWK",
+                country: "MWI",
                 correspondent: selectedProvider!.provider,
                 customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
                 ticketData: ticketPayload
             };
-
-            // THIS IS THE LOGGING YOU REQUESTED
+            
             console.log("Payload being sent to server action:", payloadToServer);
 
             const result = await initiateTicketDeposit(payloadToServer);
