@@ -190,8 +190,6 @@ export const initiateTicketDeposit = async (payload: {
         const responseData = await response.json();
         if (!response.ok) {
             console.error("PawaPay API Error (Ticket Purchase):", responseData);
-            // Optionally, delete the pending ticket if the payment initiation fails
-            // await deleteDoc(doc(db, 'tickets', ticketId));
             return { success: false, message: responseData.errorMessage || "Failed to initiate payment." };
         }
 
@@ -234,5 +232,3 @@ export const checkDepositStatus = async (depositId: string): Promise<{ status: '
         throw error;
     }
 };
-
-    

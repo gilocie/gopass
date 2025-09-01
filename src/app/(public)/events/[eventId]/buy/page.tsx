@@ -222,7 +222,6 @@ export default function BuyTicketPage() {
             status: 'active'
         };
         
-        // Online Payment Flow
         setPaymentStatus('pending');
         
         try {
@@ -235,8 +234,6 @@ export default function BuyTicketPage() {
                 statementDescription: `Ticket for ${event.name}`.substring(0, 25),
                 ticketData: ticketData
             };
-            
-            console.log("Payload being sent to server action:", payloadToServer);
 
             const result = await initiateTicketDeposit(payloadToServer);
 
