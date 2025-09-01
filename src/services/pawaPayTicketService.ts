@@ -105,16 +105,23 @@ export const initiateTicketDeposit = async (payload: TicketDepositPayload): Prom
         const { ticketId, pin } = await addTicket(payload.ticketData);
         
         const depositId = uuidv4().toUpperCase();
+        const formattedAmount = parseFloat(payload.amount).toFixed(2);
+        const customerTimestamp = new Date().toISOString();
 
         // Step 2: Prepare a minimal, clean payload for PawaPay
         const requestBody = {
             depositId,
-            amount: payload.amount,
+            amount: formattedAmount,
             currency: payload.currency,
             country: payload.country,
             correspondent: payload.correspondent,
-            payer: { type: "MSISDN", address: { value: payload.customerPhone } },
-            customerTimestamp: new Date().toISOString(),
+            payer: { 
+                type: "MSISDN", 
+                address: { 
+                    value: payload.customerPhone 
+                } 
+            },
+            customerTimestamp,
             statementDescription: payload.statementDescription,
             metadata: [
                 {
@@ -139,9 +146,10 @@ export const initiateTicketDeposit = async (payload: TicketDepositPayload): Prom
         });
 
         const responseData = await response.json();
-        if (!response.ok) {
+        if (!response.ok || responseData.status === 'REJECTED') {
             console.error("PawaPay API Error (Ticket Purchase):", responseData);
-            return { success: false, message: responseData.errorMessage || "Failed to initiate payment." };
+            const errorMessage = responseData.failureReason?.failureMessage || responseData.errorMessage || "Failed to initiate payment.";
+            return { success: false, message: errorMessage };
         }
 
         return { success: true, message: "Payment initiated.", depositId };
