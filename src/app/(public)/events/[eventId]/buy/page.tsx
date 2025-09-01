@@ -28,6 +28,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { addTicket } from '@/services/ticketService';
 import type { PawaPayProvider } from '@/services/pawaPayTicketService';
 import { uploadFileFromServer } from '@/services/storageService';
+import { v4 as uuidv4 } from 'uuid';
 
 
 export default function BuyTicketPage() {
@@ -222,7 +223,7 @@ export default function BuyTicketPage() {
             benefits: benefitsForTicket,
             totalPaid: totalCost,
             paymentMethod: paymentMethod,
-            paymentStatus: paymentMethod === 'manual' ? 'completed' : 'pending',
+            paymentStatus: paymentMethod === 'manual' ? 'awaiting-confirmation' : 'pending',
             status: 'active'
         };
 
