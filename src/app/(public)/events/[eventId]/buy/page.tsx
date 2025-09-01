@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -47,7 +46,7 @@ export default function BuyTicketPage() {
     const [phone, setPhone] = React.useState('');
     const [photoUrl, setPhotoUrl] = React.useState('');
     const [selectedBenefits, setSelectedBenefits] = React.useState<string[]>([]);
-    const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('online');
+    const [paymentMethod, setPaymentMethod] = React.useState<'online' | 'manual'>('manual');
 
     // Online Payment State
     const [paymentStatus, setPaymentStatus] = React.useState<'idle' | 'pending' | 'success' | 'failed'>('idle');
@@ -236,23 +235,22 @@ export default function BuyTicketPage() {
                 setIsPurchasing(false);
              }
         } else { // Online Payment
-            setPaymentStatus('pending');
             try {
                 const result = await initiateTicketDeposit({
                     amount: totalCost.toString(),
-                    currency: "MWK",
-                    country: "MWI",
                     correspondent: selectedProvider!.provider,
-                    customerPhone: `${countryPrefix}${phone.replace(/^0+/, '')}`,
-                    statementDescription: `Ticket for ${event.name}`.substring(0, 25),
+                    customerPhone: phone,
+                    statementDescription: `Ticket for ${event.name}`,
                     ticketData: ticketData
                 });
 
-                if (result.success && result.depositId) {
-                    setDepositId(result.depositId);
+                if (result.success && result.ticketId && result.pin) {
+                    toast({ title: 'Debug Success!', description: 'Ticket created and marked as complete.' });
+                    sessionStorage.setItem('lastPurchaseDetails', JSON.stringify({ eventId: event.id, ticketId: result.ticketId, pin: result.pin }));
+                    router.push(`/events/${event.id}/success`);
                 } else {
                     setPaymentStatus('failed');
-                    toast({ variant: 'destructive', title: 'Payment Failed', description: result.message || 'Could not initiate payment.' });
+                    toast({ variant: 'destructive', title: 'Debug Failed', description: result.message || 'Could not process debug purchase.' });
                     setIsPurchasing(false);
                 }
             } catch (error: any) {

@@ -1,9 +1,8 @@
-
 'use server';
 
 import { v4 as uuidv4 } from 'uuid';
 import type { OmitIdTicket } from '@/lib/types';
-import { addTicket } from './ticketService';
+import { addTicket, updateTicket } from './ticketService';
 
 // --- TYPE DEFINITIONS ---
 
@@ -26,8 +25,6 @@ export interface PawaPayCountryConfig {
 
 interface TicketDepositPayload {
     amount: string;
-    currency: 'MWK';
-    country: 'MWI';
     correspondent: string;
     customerPhone: string;
     statementDescription: string;
@@ -95,68 +92,46 @@ export const getCountryConfig = async (countryCode: 'MWI'): Promise<PawaPayCount
  * Initiates a PawaPay deposit for a ticket purchase.
  * It first creates a temporary ticket in Firestore, then initiates payment.
  */
-export const initiateTicketDeposit = async (payload: TicketDepositPayload): Promise<{ success: boolean; message: string; depositId?: string; }> => {
+export const initiateTicketDeposit = async (payload: TicketDepositPayload): Promise<{ success: boolean; message: string; depositId?: string, ticketId?: string, pin?: string }> => {
     if (!PAWAPAY_BASE_URL || !PAWAPAY_API_TOKEN) {
         return { success: false, message: "Payment service is not configured." };
     }
 
     try {
-        // Step 1: Create temporary ticket in Firestore with PENDING status
+        // Step 1: Create the ticket in Firestore with PENDING status
         const { ticketId, pin } = await addTicket(payload.ticketData);
         
-        const depositId = uuidv4().toUpperCase();
+        // Step 2: Construct the payload for PawaPay (FOR DEBUGGING)
         const formattedAmount = parseFloat(payload.amount).toFixed(2);
-        const customerTimestamp = new Date().toISOString();
-
-        // Step 2: Prepare a minimal, clean payload for PawaPay
+        const countryPrefix = (await getCountryConfig('MWI'))?.prefix || '265';
+        
         const requestBody = {
-            depositId,
             amount: formattedAmount,
-            currency: payload.currency,
-            country: payload.country,
+            currency: "MWK",
+            country: "MWI",
             correspondent: payload.correspondent,
-            payer: { 
-                type: "MSISDN", 
-                address: { 
-                    value: payload.customerPhone 
-                } 
+            payer: {
+                type: "MSISDN",
+                address: { value: `${countryPrefix}${payload.customerPhone.replace(/^0+/, '')}` }
             },
-            customerTimestamp,
-            statementDescription: payload.statementDescription,
-            metadata: [
-                {
-                    fieldName: "type",
-                    fieldValue: "ticket_purchase"
-                },
-                {
-                    fieldName: "ticketId",
-                    fieldValue: ticketId
-                },
-                {
-                    fieldName: "pin",
-                    fieldValue: pin
-                }
-            ]
+            customerTimestamp: new Date().toISOString(),
+            statementDescription: payload.statementDescription.substring(0, 25),
         };
+        
+        // Step 3: Log the payload to the server console
+        console.log("--- PAWAPAY TICKET DEPOSIT PAYLOAD (DEBUG) ---");
+        console.log(JSON.stringify(requestBody, null, 2));
+        console.log("----------------------------------------------");
 
-        const response = await fetch(`${PAWAPAY_BASE_URL}/deposits`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${PAWAPAY_API_TOKEN}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
+        // Step 4: Immediately update the ticket status to 'completed'
+        await updateTicket(ticketId, { paymentStatus: 'completed' });
 
-        const responseData = await response.json();
-        if (!response.ok || responseData.status === 'REJECTED') {
-            console.error("PawaPay API Error (Ticket Purchase):", responseData);
-            const errorMessage = responseData.failureReason?.failureMessage || responseData.errorMessage || "Failed to initiate payment.";
-            return { success: false, message: errorMessage };
-        }
-
-        return { success: true, message: "Payment initiated.", depositId };
+        // Step 5: Return success to the client
+        return { success: true, message: "Debug successful. Ticket marked as complete.", ticketId, pin };
 
     } catch (error) {
-        console.error("Error in initiateTicketDeposit:", error);
-        return { success: false, message: "An unexpected server error occurred." };
+        console.error("Error in initiateTicketDeposit (Debug Mode):", error);
+        return { success: false, message: "An unexpected server error occurred during the debug process." };
     }
 };
 
