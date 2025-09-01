@@ -27,8 +27,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { addTicket } from '@/services/ticketService';
 import type { PawaPayProvider } from '@/services/pawaPayTicketService';
-import { uploadFileFromServer } from '@/services/storageService';
-import { v4 as uuidv4 } from 'uuid';
 
 
 export default function BuyTicketPage() {
@@ -524,24 +522,10 @@ export default function BuyTicketPage() {
                         setImageToCrop(null);
                     }}
                     imageSrc={imageToCrop}
-                    onCropComplete={async (croppedImageBlob) => {
+                    onCropComplete={(croppedImageUrl) => {
+                        setPhotoUrl(croppedImageUrl);
                         setIsCropperOpen(false);
                         setImageToCrop(null);
-                        
-                        const formData = new FormData();
-                        formData.append('file', croppedImageBlob);
-                        formData.append('path', `ticket-photos/${uuidv4()}`);
-
-                        try {
-                            const downloadURL = await uploadFileFromServer(formData);
-                            setPhotoUrl(downloadURL);
-                        } catch (error) {
-                            toast({
-                                variant: 'destructive',
-                                title: 'Upload Failed',
-                                description: 'Could not upload the cropped image.',
-                            });
-                        }
                     }}
                 />
             )}

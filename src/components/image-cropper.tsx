@@ -21,7 +21,7 @@ interface ImageCropperProps {
   isOpen: boolean;
   onClose: () => void;
   imageSrc: string;
-  onCropComplete: (croppedImageBlob: Blob) => void;
+  onCropComplete: (croppedImageUrl: string) => void;
 }
 
 function centerAspectCrop(
@@ -80,13 +80,8 @@ export function ImageCropper({ isOpen, onClose, imageSrc, onCropComplete }: Imag
     if (!canvas) {
       throw new Error('Crop canvas does not exist');
     }
-    canvas.toBlob((blob) => {
-        if (!blob) {
-            console.error('Canvas is empty');
-            return;
-        }
-        onCropComplete(blob);
-    }, 'image/jpeg');
+    const dataUrl = canvas.toDataURL('image/jpeg');
+    onCropComplete(dataUrl);
   };
   
   const canvasPreview = async (
