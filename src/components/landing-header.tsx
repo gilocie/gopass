@@ -23,6 +23,7 @@ import { getOrganizersByUserId } from '@/services/organizerService';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Settings, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const publicNavLinks = [
     { href: '/events', label: 'Events' },
@@ -86,65 +87,67 @@ export function LandingHeader() {
   const logoUrl = currentOrganizer?.logoUrl;
 
   return (
-    <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center">
-      {/* Left Section: Logo and Brand Name */}
-      <div className="flex items-center gap-4">
-        <Logo />
-      </div>
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center">
+        {/* Left Section: Logo and Brand Name */}
+        <div className="flex items-center gap-4">
+          <Logo />
+        </div>
 
-      {/* Center Section: Navigation Links */}
-      <nav className="hidden md:flex items-center gap-4 mx-auto">
-          {publicNavLinks.map(link => (
-              <Button key={link.href} variant="link" asChild className="text-muted-foreground hover:text-primary">
-                  <Link href={link.href}>{link.label}</Link>
-              </Button>
-          ))}
-      </nav>
-
-      {/* Right Section: User Actions */}
-      <div className="flex items-center gap-4 ml-auto">
-        {authLoading ? (
-          <div className="h-10 w-24 bg-muted animate-pulse rounded-md" />
-        ) : user ? (
-          <>
-            <Button variant="ghost" asChild>
-              <Link href="/dashboard" onClick={handleDashboardClick}>
-                 {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                 Dashboard
-              </Link>
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="icon" className="rounded-full">
-                  <Avatar>
-                    <AvatarImage src={logoUrl || user.photoURL || "https://placehold.co/40x40.png"} alt="@organizer" data-ai-hint="organization logo" />
-                    <AvatarFallback>{currentOrganizer?.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-                  </Avatar>
-                  <span className="sr-only">Toggle user menu</span>
+        {/* Center Section: Navigation Links */}
+        <nav className="hidden md:flex items-center gap-4 mx-auto">
+            {publicNavLinks.map(link => (
+                <Button key={link.href} variant="link" asChild className="text-muted-foreground hover:text-primary">
+                    <Link href={link.href}>{link.label}</Link>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem>Support</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        ) : (
-          <>
-            <Button variant="ghost" asChild>
-              <Link href="/login">Log In</Link>
-            </Button>
-            <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-              <Link href="/register">Sign Up</Link>
-            </Button>
-          </>
-        )}
+            ))}
+        </nav>
+
+        {/* Right Section: User Actions */}
+        <div className="flex items-center gap-4 ml-auto">
+          {authLoading ? (
+            <div className="h-10 w-24 bg-muted animate-pulse rounded-md" />
+          ) : user ? (
+            <>
+              <Button variant="ghost" asChild>
+                <Link href="/dashboard" onClick={handleDashboardClick}>
+                  {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Dashboard
+                </Link>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size="icon" className="rounded-full">
+                    <Avatar>
+                      <AvatarImage src={logoUrl || user.photoURL || "https://placehold.co/40x40.png"} alt="@organizer" data-ai-hint="organization logo" />
+                      <AvatarFallback>{currentOrganizer?.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <span className="sr-only">Toggle user menu</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>Support</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" asChild>
+                <Link href="/login">Log In</Link>
+              </Button>
+              <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
+                <Link href="/register">Sign Up</Link>
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );
