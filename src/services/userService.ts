@@ -15,6 +15,7 @@ import {
 import { doc, setDoc, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import type { PlanId } from '@/lib/plans';
+import { addNotification } from './notificationService';
 
 // Get or create a user profile in Firestore
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
@@ -37,6 +38,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
                 totalPaidOut: 0,
             };
             await setDoc(userDocRef, newUserProfile);
+            addNotification(user.uid, "Welcome to GoPass! We're glad to have you here.", 'welcome', '/dashboard');
             return newUserProfile;
         }
     }

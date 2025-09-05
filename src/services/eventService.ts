@@ -3,6 +3,8 @@
 import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, doc, deleteDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import type { OmitIdEvent, Event } from '@/lib/types';
+import { addNotification } from './notificationService';
+import { auth } from '@/lib/firebase';
 
 const eventsCollection = collection(db, 'events');
 
@@ -10,6 +12,10 @@ const eventsCollection = collection(db, 'events');
 export const addEvent = async (event: OmitIdEvent) => {
     try {
         const docRef = await addDoc(eventsCollection, event);
+        const user = auth.currentUser;
+        if (user) {
+            addNotification(user.uid, `New event created: "${event.name}"`, 'event', `/dashboard/events/${docRef.id}`);
+        }
         return docRef.id;
     } catch (error) {
         console.error("Error adding document: ", error);

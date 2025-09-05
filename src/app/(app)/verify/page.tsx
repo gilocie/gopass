@@ -30,6 +30,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getEventById } from '@/services/eventService';
 import { differenceInDays, format, isAfter, isBefore, isSameDay, parse, startOfToday, differenceInMilliseconds } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { addNotification } from '@/services/notificationService';
+import { useAuth } from '@/hooks/use-auth';
+
 
 type ScanStatus = 'idle' | 'scanning' | 'success' | 'error' | 'authenticating';
 
@@ -134,6 +137,7 @@ export default function VerifyPage() {
     const videoStreamRef = React.useRef<MediaStream | null>(null);
     const { toast } = useToast();
     const router = useRouter();
+    const { user } = useAuth();
 
     const stopCamera = React.useCallback(() => {
         if (videoStreamRef.current) {
@@ -251,6 +255,9 @@ export default function VerifyPage() {
                     setScannedTicket(ticketData);
                     setEvent(eventData);
                     setStatus('success');
+                     if (user && eventData.organizerId === user.uid) {
+                        addNotification(user.uid, `Ticket for ${ticketData.holderName} was scanned at "${eventData.name}".`, 'scan', `/dashboard/events/${eventData.id}`);
+                    }
                 } else {
                     setStatus('error');
                     toast({ variant: 'destructive', title: 'Event Not Found', description: 'Associated event for this ticket could not be found.' });
@@ -295,9 +302,9 @@ export default function VerifyPage() {
     }
     
     const handleConfirmBenefitChange = async () => {
-        if (!scannedTicket || benefitToMark === null) return;
+        if (!scannedTicket || benefitToMark === null || !event || !user) return;
 
-        const { index } = benefitToMark;
+        const { index, name } = benefitToMark;
         const updatedBenefits = [...scannedTicket.benefits];
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         
@@ -308,6 +315,9 @@ export default function VerifyPage() {
 
         try {
             await updateTicket(scannedTicket.id, { benefits: updatedBenefits });
+            if (event.organizerId === user.uid) {
+                addNotification(user.uid, `Benefit "${name}" used by ${scannedTicket.holderName}.`, 'benefit', `/dashboard/events/${event.id}`);
+            }
         } catch (error) {
              toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not update benefit status.' });
              // Revert optimistic update
@@ -318,7 +328,7 @@ export default function VerifyPage() {
     }
 
     const handleMarkAllConfirm = async () => {
-        if (!scannedTicket || !event || markAllPin !== scannedTicket.pin) {
+        if (!scannedTicket || !event || markAllPin !== scannedTicket.pin || !user) {
             setMarkAllPinError('Invalid PIN. Please try again.');
             return;
         }
@@ -349,6 +359,9 @@ export default function VerifyPage() {
         try {
             await updateTicket(scannedTicket.id, { benefits: updatedBenefits });
             toast({ title: 'Success', description: `All of today's benefits have been marked as used.` });
+            if (event.organizerId === user.uid) {
+                addNotification(user.uid, `All benefits for today used by ${scannedTicket.holderName}.`, 'benefit', `/dashboard/events/${event.id}`);
+            }
         } catch (error) {
             toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not update benefits.' });
             setScannedTicket(scannedTicket); // Revert

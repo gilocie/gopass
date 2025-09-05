@@ -58,6 +58,7 @@ import { getOrganizersByUserId } from '@/services/organizerService';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
+import { Notifications } from '@/components/notifications';
 
 
 const navItems = [
@@ -248,29 +249,32 @@ export default function AppLayout({
             <div className="relative ml-auto flex-1 md:grow-0">
               {/* Search can be added here if needed */}
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" className="rounded-full">
-                      <Avatar>
-                          <AvatarImage src={logoUrl || user?.photoURL || "https://placehold.co/40x40.png"} alt="@organizer" data-ai-hint="person avatar" />
-                          <AvatarFallback>{currentOrganizer?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-                      </Avatar>
-                      <span className="sr-only">Toggle user menu</span>
-                  </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem>Support</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/">Logout</Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+                {user && <Notifications userId={user.uid} />}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                      <Button variant="secondary" size="icon" className="rounded-full">
+                          <Avatar>
+                              <AvatarImage src={logoUrl || user?.photoURL || "https://placehold.co/40x40.png"} alt="@organizer" data-ai-hint="person avatar" />
+                              <AvatarFallback>{currentOrganizer?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                          </Avatar>
+                          <span className="sr-only">Toggle user menu</span>
+                      </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>Support</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/">Logout</Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
           </header>
           <main className="grid flex-1 items-start gap-4 p-2 sm:px-6 sm:py-0 md:gap-8">
              {children}

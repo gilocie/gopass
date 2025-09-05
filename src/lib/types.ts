@@ -130,3 +130,13 @@ export interface Ticket {
 }
 
 export type OmitIdTicket = Omit<Ticket, 'id'>;
+
+export interface Notification {
+    id: string;
+    userId: string;
+    message: string;
+    type: 'welcome' | 'event' | 'ticket' | 'scan' | 'benefit' | 'organizer';
+    link?: string;
+    createdAt: Timestamp;
+    isRead: boolean;
+}

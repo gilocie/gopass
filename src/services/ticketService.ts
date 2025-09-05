@@ -6,6 +6,8 @@ import { collection, addDoc, query, where, onSnapshot, DocumentData, doc, update
 import type { OmitIdTicket, Ticket } from '@/lib/types';
 import { stripUndefined } from '@/lib/utils';
 import { v4 as uuidv4 } from 'uuid';
+import { getEventById } from './eventService';
+import { addNotification } from './notificationService';
 
 const ticketsCollection = collection(db, 'tickets');
 
@@ -39,6 +41,10 @@ export const addTicket = async (ticket: Omit<OmitIdTicket, 'pin'>): Promise<{tic
         
         // For manually created tickets that are auto-approved, increment the count immediately
         if (ticket.paymentMethod === 'manual' && ticket.paymentStatus === 'completed') {
+            const event = await getEventById(ticket.eventId);
+            if (event && event.organizerId) {
+                addNotification(event.organizerId, `New ticket sold for "${event.name}" to ${ticket.holderName}.`, 'ticket', `/dashboard/events/${event.id}`);
+            }
             const eventDocRef = doc(db, 'events', ticket.eventId);
             await updateDoc(eventDocRef, {
                 ticketsIssued: increment(1)
@@ -76,6 +82,10 @@ export const createFinalTicket = async (ticketId: string, ticketData: OmitIdTick
     await setDoc(ticketDocRef, stripUndefined(finalTicketData), { merge: true });
 
     const eventDocRef = doc(db, 'events', ticketData.eventId);
+    const event = await getEventById(ticketData.eventId);
+    if (event && event.organizerId) {
+        addNotification(event.organizerId, `New ticket sold for "${event.name}" to ${ticketData.holderName}.`, 'ticket', `/dashboard/events/${event.id}`);
+    }
     await updateDoc(eventDocRef, {
         ticketsIssued: increment(1)
     });

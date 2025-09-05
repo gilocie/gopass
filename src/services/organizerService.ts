@@ -3,6 +3,7 @@
 import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, doc, updateDoc, query, where, limit, getDoc, deleteDoc } from 'firebase/firestore';
 import type { OmitIdOrganizer, Organizer } from '@/lib/types';
+import { addNotification } from './notificationService';
 
 const organizersCollection = collection(db, 'organizers');
 
@@ -10,6 +11,7 @@ const organizersCollection = collection(db, 'organizers');
 export const createOrganizer = async (organizer: Omit<Organizer, 'id'>): Promise<string> => {
     try {
         const docRef = await addDoc(organizersCollection, organizer);
+        addNotification(organizer.userId, `Your new organizer page "${organizer.name}" is live!`, 'organizer', `/organizer/${docRef.id}`);
         return docRef.id;
     } catch (error) {
         console.error("Error adding organizer document: ", error);
