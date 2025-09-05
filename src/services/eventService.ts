@@ -1,5 +1,4 @@
 
-
 import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, doc, deleteDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import type { OmitIdEvent, Event } from '@/lib/types';
@@ -11,7 +10,7 @@ const eventsCollection = collection(db, 'events');
 // Create a new event
 export const addEvent = async (event: OmitIdEvent) => {
     try {
-        const docRef = await addDoc(eventsCollection, event);
+        const docRef = await addDoc(eventsCollection, {...event, createdAt: serverTimestamp()});
         const user = auth.currentUser;
         if (user) {
             addNotification(user.uid, `New event created: "${event.name}"`, 'event', `/dashboard/events/${docRef.id}`);

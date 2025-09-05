@@ -1,5 +1,4 @@
 
-
 import type { PlanId } from './plans';
 import type { Timestamp } from 'firebase/firestore';
 
@@ -15,6 +14,7 @@ export interface UserProfile {
     }[];
     exchangeRates?: { [key: string]: number }; // e.g., { USD: 1750 }
     totalPaidOut?: number;
+    isAdmin?: boolean; // <-- Add isAdmin flag
 }
 
 export interface Organizer {
@@ -94,6 +94,7 @@ export interface Event {
     isPublished?: boolean;
     benefits?: EventBenefit[];
     ticketTemplate?: Partial<EventTicketTemplate>;
+    createdAt?: Timestamp;
 }
 
 export type OmitIdEvent = Omit<Event, 'id'>;

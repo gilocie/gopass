@@ -12,7 +12,7 @@ import {
     signOut,
     User
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, arrayUnion, increment, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import type { PlanId } from '@/lib/plans';
 import { addNotification } from './notificationService';
@@ -36,6 +36,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
                 planId: 'hobby', // Default to free plan
                 countryCode: 'US', // Default to USA
                 totalPaidOut: 0,
+                isAdmin: false, // Default to not an admin
             };
             await setDoc(userDocRef, newUserProfile);
             addNotification(user.uid, "Welcome to GoPass! We're glad to have you here.", 'welcome', '/dashboard');
@@ -44,6 +45,15 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
     }
     return null;
 };
+
+// Get all user profiles (for admin)
+export const getAllUserProfiles = async (): Promise<UserProfile[]> => {
+    const usersCollection = collection(db, 'users');
+    const q = query(usersCollection, orderBy('displayName'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as UserProfile);
+};
+
 
 // Update a user's profile in Firestore
 export const updateUserFirestoreProfile = async (uid: string, data: Partial<UserProfile>): Promise<void> => {
