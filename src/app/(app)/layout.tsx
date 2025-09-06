@@ -19,7 +19,8 @@ import {
   Building,
   Settings,
   DollarSign,
-  Wallet
+  Wallet,
+  Shield,
 } from 'lucide-react';
 
 import {
@@ -53,8 +54,9 @@ import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { PageLoader } from '@/components/page-loader';
 import { useAuth } from '@/hooks/use-auth';
-import type { Organizer } from '@/lib/types';
+import type { Organizer, UserProfile } from '@/lib/types';
 import { getOrganizersByUserId } from '@/services/organizerService';
+import { getUserProfile } from '@/services/userService';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
@@ -86,25 +88,30 @@ export default function AppLayout({
     const { toast } = useToast();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(true);
     const [organizers, setOrganizers] = React.useState<Organizer[]>([]);
-    const [loadingOrganizers, setLoadingOrganizers] = React.useState(true);
+    const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
+    const [loadingData, setLoadingData] = React.useState(true);
 
     React.useEffect(() => {
-        const fetchUserOrganizers = async () => {
+        const fetchUserData = async () => {
             if (user) {
                 try {
-                    setLoadingOrganizers(true);
-                    const userOrgs = await getOrganizersByUserId(user.uid);
+                    setLoadingData(true);
+                    const [userOrgs, profile] = await Promise.all([
+                        getOrganizersByUserId(user.uid),
+                        getUserProfile(user.uid)
+                    ]);
                     setOrganizers(userOrgs);
+                    setUserProfile(profile);
                 } catch (error) {
-                    toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch your organizer profiles.' });
+                    toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch your profile data.' });
                 } finally {
-                    setLoadingOrganizers(false);
+                    setLoadingData(false);
                 }
             } else if (!authLoading) {
-                 setLoadingOrganizers(false);
+                 setLoadingData(false);
             }
         };
-        fetchUserOrganizers();
+        fetchUserData();
     }, [user, authLoading, toast]);
 
 
@@ -121,6 +128,7 @@ export default function AppLayout({
 
     const currentOrganizer = organizers[0];
     const logoUrl = currentOrganizer?.logoUrl;
+    const isAdmin = userProfile?.isAdmin === true;
 
   return (
     <CurrencyProvider>
@@ -267,6 +275,11 @@ export default function AppLayout({
                     <DropdownMenuItem asChild>
                       <Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
                     </DropdownMenuItem>
+                    {isAdmin && (
+                        <DropdownMenuItem asChild>
+                            <Link href="/dashboard/admin"><Shield className="mr-2 h-4 w-4" />Go to Admin</Link>
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem>Support</DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>

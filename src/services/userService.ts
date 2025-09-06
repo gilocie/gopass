@@ -17,6 +17,15 @@ import type { UserProfile } from '@/lib/types';
 import type { PlanId } from '@/lib/plans';
 import { addNotification } from './notificationService';
 
+// Helper function to check if any users exist
+const areThereAnyUsers = async (): Promise<boolean> => {
+    const usersCollectionRef = collection(db, 'users');
+    const q = query(usersCollectionRef, limit(1));
+    const snapshot = await getDocs(q);
+    return !snapshot.empty;
+};
+
+
 // Get or create a user profile in Firestore
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
     if (!uid) return null;
@@ -29,6 +38,8 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
         // If profile doesn't exist, create it for a new user
         const user = auth.currentUser;
         if (user) {
+            const isFirstUser = !(await areThereAnyUsers());
+
             const newUserProfile: UserProfile = {
                 uid: user.uid,
                 email: user.email,
@@ -36,10 +47,13 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
                 planId: 'hobby', // Default to free plan
                 countryCode: 'US', // Default to USA
                 totalPaidOut: 0,
-                isAdmin: false, // Default to not an admin
+                isAdmin: isFirstUser, // Make the first user an admin
             };
             await setDoc(userDocRef, newUserProfile);
             addNotification(user.uid, "Welcome to GoPass! We're glad to have you here.", 'welcome', '/dashboard');
+            if (isFirstUser) {
+                addNotification(user.uid, "You have been granted admin privileges.", 'event', '/dashboard/admin');
+            }
             return newUserProfile;
         }
     }
