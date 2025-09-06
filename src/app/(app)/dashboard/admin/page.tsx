@@ -30,10 +30,19 @@ export default function AdminDashboardPage() {
     React.useEffect(() => {
         const fetchData = async () => {
             try {
-                const [users, events] = await Promise.all([
+                const [allUsers, events] = await Promise.all([
                     getAllUserProfiles(),
                     getEvents()
                 ]);
+
+                // Ensure users are unique to prevent React key errors
+                const uniqueUsersMap = new Map<string, UserProfile>();
+                allUsers.forEach(user => {
+                    if (user && user.uid) {
+                        uniqueUsersMap.set(user.uid, user);
+                    }
+                });
+                const users = Array.from(uniqueUsersMap.values());
 
                 const organizers = await getAllOrganizers(users);
                 
