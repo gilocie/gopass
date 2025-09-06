@@ -4,7 +4,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Shield, Home, Users, Calendar, Building, Settings, Palette, Share2, BarChart2 } from 'lucide-react';
+import { Shield, Home, Users, Calendar, Building, Settings, Palette, Share2, BarChart2, Wallet } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/use-admin-auth';
 import { ClientLoader } from '@/components/client-loader';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ const adminNavItems = [
   { href: '/dashboard/admin/events', icon: Calendar, label: 'Events' },
   { href: '/dashboard/admin/organizers', icon: Building, label: 'Organizers' },
   { href: '/dashboard/admin/analytics', icon: BarChart2, label: 'Analytics' },
+  { href: '/dashboard/admin/wallet', icon: Wallet, label: 'Wallet' },
   { href: '/dashboard/admin/branding', icon: Palette, label: 'Branding' },
   { href: '/dashboard/admin/affiliates', icon: Share2, label: 'Affiliates' },
   { href: '/dashboard/admin/settings', icon: Settings, label: 'Settings' },

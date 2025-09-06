@@ -14,7 +14,17 @@ export interface UserProfile {
     }[];
     exchangeRates?: { [key: string]: number }; // e.g., { USD: 1750 }
     totalPaidOut?: number;
-    isAdmin?: boolean; // <-- Add isAdmin flag
+    isAdmin?: boolean;
+}
+
+export interface PayoutRequest {
+    id: string;
+    userId: string;
+    organizerId: string;
+    amount: number;
+    status: 'pending' | 'approved' | 'denied';
+    requestedAt: Timestamp;
+    processedAt?: Timestamp;
 }
 
 export interface Organizer {

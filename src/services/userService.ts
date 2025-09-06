@@ -12,10 +12,11 @@ import {
     signOut,
     User
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, arrayUnion, increment, collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
-import type { UserProfile } from '@/lib/types';
+import { doc, setDoc, getDoc, updateDoc, arrayUnion, increment, collection, getDocs, query, orderBy, limit, where, serverTimestamp, addDoc } from 'firebase/firestore';
+import type { UserProfile, PayoutRequest } from '@/lib/types';
 import type { PlanId } from '@/lib/plans';
 import { addNotification } from './notificationService';
+import { getOrganizerByUserId } from './organizerService';
 
 // Helper function to check if any admin users exist
 const areThereAnyAdmins = async (): Promise<boolean> => {
@@ -85,20 +86,64 @@ export const updateUserFirestoreProfile = async (uid: string, data: Partial<User
     await updateDoc(userDocRef, data);
 };
 
-// Simulate a payout request
+// Organizer requests a payout
 export const requestPayout = async (uid: string, amount: number): Promise<void> => {
     const userDocRef = doc(db, 'users', uid);
-    // In a real app, this would trigger a backend process.
-    // For now, we just update the user's totalPaidOut.
+    const organizer = await getOrganizerByUserId(uid);
+    if (!organizer) {
+        throw new Error("Organizer profile not found for this user.");
+    }
+    
     try {
-        await updateDoc(userDocRef, {
-            totalPaidOut: increment(amount)
+        const payoutRequestCollection = collection(db, 'payoutRequests');
+        await addDoc(payoutRequestCollection, {
+            userId: uid,
+            organizerId: organizer.id,
+            amount,
+            status: 'pending',
+            requestedAt: serverTimestamp()
         });
     } catch (error) {
-        console.error("Error requesting payout:", error);
-        throw new Error("Could not process payout request.");
+        console.error("Error creating payout request:", error);
+        throw new Error("Could not create payout request.");
     }
-}
+};
+
+// Admin gets all payout requests
+export const getAllPayoutRequests = async (): Promise<PayoutRequest[]> => {
+    const payoutRequestsCollection = collection(db, 'payoutRequests');
+    const q = query(payoutRequestsCollection, orderBy('requestedAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayoutRequest));
+};
+
+// Admin processes a payout request
+export const processPayoutRequest = async (requestId: string, status: 'approved' | 'denied'): Promise<void> => {
+    const requestDocRef = doc(db, 'payoutRequests', requestId);
+    const requestSnap = await getDoc(requestDocRef);
+
+    if (!requestSnap.exists()) {
+        throw new Error("Payout request not found.");
+    }
+
+    const requestData = requestSnap.data() as PayoutRequest;
+
+    if (requestData.status !== 'pending') {
+        throw new Error("This request has already been processed.");
+    }
+
+    await updateDoc(requestDocRef, {
+        status: status,
+        processedAt: serverTimestamp()
+    });
+
+    if (status === 'approved') {
+        const userDocRef = doc(db, 'users', requestData.userId);
+        await updateDoc(userDocRef, {
+            totalPaidOut: increment(requestData.amount)
+        });
+    }
+};
 
 
 // Upgrade a user's plan
