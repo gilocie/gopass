@@ -12,7 +12,13 @@ export const getBrandingSettings = async (): Promise<BrandingSettings | null> =>
     try {
         const docSnap = await getDoc(settingsDocRef);
         if (docSnap.exists()) {
-            return docSnap.data() as BrandingSettings;
+            const data = docSnap.data() as BrandingSettings;
+            // Convert Firestore Timestamp to a serializable format (ISO string)
+            // This is crucial for passing data from Server Components to Client Components
+            if (data.lastUpdated && data.lastUpdated instanceof Timestamp) {
+                data.lastUpdated = data.lastUpdated.toDate().toISOString();
+            }
+            return data;
         }
         return null;
     } catch (error) {

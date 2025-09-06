@@ -178,7 +178,7 @@ export interface BrandingSettings {
         phone: string;
         address: string;
     };
-    lastUpdated?: Timestamp;
+    lastUpdated?: Timestamp | string;
 }
 
     
