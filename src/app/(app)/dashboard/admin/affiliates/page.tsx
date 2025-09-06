@@ -32,7 +32,7 @@ function OverviewTab() {
                     <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{format(1234.56)}</div>
+                    <div className="text-2xl font-bold">{format(1234.56, false)}</div>
                     <p className="text-xs text-muted-foreground">This month</p>
                 </CardContent>
             </Card>
@@ -86,7 +86,7 @@ function AffiliatesTab() {
                             </TableCell>
                             <TableCell>Approved</TableCell>
                             <TableCell>25</TableCell>
-                            <TableCell className="text-right">{format(250.00)}</TableCell>
+                            <TableCell className="text-right">{format(250.00, false)}</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>

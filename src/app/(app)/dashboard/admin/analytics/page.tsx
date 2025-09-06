@@ -12,6 +12,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format, subDays } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { BASE_CURRENCY_CODE } from '@/lib/currency';
 
 // In a real app, this would be in a service file
 async function getAllTickets(): Promise<TicketType[]> {
@@ -25,7 +26,7 @@ export default function AdminAnalyticsPage() {
     const [events, setEvents] = React.useState<Event[]>([]);
     const [tickets, setTickets] = React.useState<TicketType[]>([]);
     const [loading, setLoading] = React.useState(true);
-    const { format: formatPrice } = useCurrency();
+    const { format: formatPrice, convert, currency: userCurrency, exchangeRates } = useCurrency();
 
     React.useEffect(() => {
         const fetchData = async () => {
@@ -45,9 +46,24 @@ export default function AdminAnalyticsPage() {
         fetchData();
     }, []);
 
-    const totalRevenue = tickets.reduce((acc, ticket) => acc + (ticket.totalPaid || 0), 0);
+    const totalRevenueInBaseCurrency = React.useMemo(() => {
+        return tickets.reduce((acc, ticket) => {
+            const event = events.find(e => e.id === ticket.eventId);
+            const ticketCurrency = event?.currency || BASE_CURRENCY_CODE;
+            const amount = ticket.totalPaid || 0;
+
+            if (ticketCurrency === BASE_CURRENCY_CODE) {
+                return acc + amount;
+            }
+            
+            // Convert local currency amount back to base currency for consistent summation
+            const rate = exchangeRates[ticketCurrency] || 1;
+            return acc + (amount / rate);
+        }, 0);
+    }, [tickets, events, exchangeRates]);
+
     const totalTicketsSold = tickets.length;
-    const avgRevenuePerTicket = totalTicketsSold > 0 ? totalRevenue / totalTicketsSold : 0;
+    const avgRevenuePerTicket = totalTicketsSold > 0 ? totalRevenueInBaseCurrency / totalTicketsSold : 0;
 
     const revenueByDay = React.useMemo(() => {
         const data: { [key: string]: number } = {};
@@ -62,31 +78,45 @@ export default function AdminAnalyticsPage() {
             if (ticket.createdAt && new Date(ticket.createdAt) >= thirtyDaysAgo) {
                 const date = format(new Date(ticket.createdAt), 'MMM dd');
                 if (data[date] !== undefined) {
-                    data[date] += ticket.totalPaid || 0;
+                    const event = events.find(e => e.id === ticket.eventId);
+                    const ticketCurrency = event?.currency || BASE_CURRENCY_CODE;
+                    let amountInBase = ticket.totalPaid || 0;
+
+                    if(ticketCurrency !== BASE_CURRENCY_CODE) {
+                        const rate = exchangeRates[ticketCurrency] || 1;
+                        amountInBase = amountInBase / rate;
+                    }
+
+                    data[date] += amountInBase;
                 }
             }
         });
         
         return Object.entries(data).map(([name, revenue]) => ({ name, revenue })).reverse();
 
-    }, [tickets]);
+    }, [tickets, events, exchangeRates]);
     
     const topEvents = React.useMemo(() => {
-        const eventRevenue: { [key: string]: { name: string; revenue: number; tickets: number } } = {};
+        const eventRevenue: { [key: string]: { name: string; revenue: number; tickets: number, currency: string } } = {};
         
         tickets.forEach(ticket => {
             const event = events.find(e => e.id === ticket.eventId);
             if (event) {
                 if (!eventRevenue[event.id]) {
-                    eventRevenue[event.id] = { name: event.name, revenue: 0, tickets: 0 };
+                    eventRevenue[event.id] = { name: event.name, revenue: 0, tickets: 0, currency: event.currency || BASE_CURRENCY_CODE };
                 }
                 eventRevenue[event.id].revenue += ticket.totalPaid || 0;
                 eventRevenue[event.id].tickets += 1;
             }
         });
 
-        return Object.values(eventRevenue).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-    }, [tickets, events]);
+        return Object.values(eventRevenue).sort((a, b) => {
+            // Convert to base currency for accurate sorting
+            const rateA = a.currency === BASE_CURRENCY_CODE ? 1 : (1 / (exchangeRates[a.currency] || 1));
+            const rateB = b.currency === BASE_CURRENCY_CODE ? 1 : (1 / (exchangeRates[b.currency] || 1));
+            return (b.revenue * rateB) - (a.revenue * rateA);
+        }).slice(0, 5);
+    }, [tickets, events, exchangeRates]);
 
 
     if (loading) {
@@ -105,7 +135,7 @@ export default function AdminAnalyticsPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{formatPrice(totalRevenue)}</div>
+                        <div className="text-2xl font-bold">{formatPrice(totalRevenueInBaseCurrency)}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -136,7 +166,7 @@ export default function AdminAnalyticsPage() {
                         <LineChart data={revenueByDay}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
-                            <YAxis />
+                            <YAxis tickFormatter={(value) => formatPrice(value, false, true)} />
                             <Tooltip formatter={(value: number) => formatPrice(value)} />
                             <Line type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" />
                         </LineChart>
@@ -166,7 +196,7 @@ export default function AdminAnalyticsPage() {
                                         <div className="font-medium">{event.name}</div>
                                     </TableCell>
                                     <TableCell className="text-right">{event.tickets}</TableCell>
-                                    <TableCell className="text-right">{formatPrice(event.revenue)}</TableCell>
+                                    <TableCell className="text-right">{formatPrice(event.revenue, true)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
