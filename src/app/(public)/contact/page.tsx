@@ -1,11 +1,20 @@
+
+      
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Mail, Phone, MapPin } from "lucide-react";
+import { getBrandingSettings } from "@/services/settingsService";
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const settings = await getBrandingSettings();
+
+  const contactEmail = settings?.contact?.email || "support@gopass.app";
+  const contactPhone = settings?.contact?.phone || "+1 (555) 123-4567";
+  const contactAddress = settings?.contact?.address || "123 Event Lane, Celebration City, USA";
+
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto">
@@ -17,15 +26,15 @@ export default function ContactPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-4">
               <Mail className="h-5 w-5 text-primary" />
-              <span className="text-muted-foreground">support@gopass.app</span>
+              <a href={`mailto:${contactEmail}`} className="text-muted-foreground hover:text-primary">{contactEmail}</a>
             </div>
             <div className="flex items-center gap-4">
               <Phone className="h-5 w-5 text-primary" />
-              <span className="text-muted-foreground">+1 (555) 123-4567</span>
+              <span className="text-muted-foreground">{contactPhone}</span>
             </div>
             <div className="flex items-center gap-4">
               <MapPin className="h-5 w-5 text-primary" />
-              <span className="text-muted-foreground">123 Event Lane, Celebration City, USA</span>
+              <span className="text-muted-foreground">{contactAddress}</span>
             </div>
           </div>
         </div>
@@ -58,3 +67,5 @@ export default function ContactPage() {
     </div>
   );
 }
+
+    

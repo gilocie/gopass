@@ -1,6 +1,8 @@
-import type {Metadata} from 'next';
+
+      import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeApplicator } from '@/components/theme-applicator';
 
 export const metadata: Metadata = {
   title: 'GoPass',
@@ -15,6 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
+        <ThemeApplicator />
         <meta name="viewport" content="width=device-width, initial-scale=0.8" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -27,3 +30,5 @@ export default function RootLayout({
     </html>
   );
 }
+
+    

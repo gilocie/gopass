@@ -1,5 +1,5 @@
 
-'use client';
+      'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import type { Organizer } from '@/lib/types';
+import type { Organizer, BrandingSettings } from '@/lib/types';
 import { getOrganizersByUserId } from '@/services/organizerService';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Loader2, Menu } from 'lucide-react';
@@ -32,7 +32,7 @@ const publicNavLinks = [
     { href: '/contact', label: 'Contact' },
 ]
 
-export function LandingHeader() {
+export function LandingHeader({ settings }: { settings: BrandingSettings | null }) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -85,13 +85,13 @@ export function LandingHeader() {
   };
 
   const currentOrganizer = organizers[0];
-  const logoUrl = currentOrganizer?.logoUrl;
+  const userLogoUrl = currentOrganizer?.logoUrl;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Logo />
+          <Logo siteName={settings?.siteName} logoUrl={settings?.logoUrl} />
         </div>
 
         <nav className="hidden md:flex items-center gap-4">
@@ -117,7 +117,7 @@ export function LandingHeader() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="secondary" size="icon" className="rounded-full">
                     <Avatar>
-                      <AvatarImage src={logoUrl || user.photoURL || "https://placehold.co/40x40.png"} alt="@organizer" data-ai-hint="organization logo" />
+                      <AvatarImage src={userLogoUrl || user.photoURL || "https://placehold.co/40x40.png"} alt="@organizer" data-ai-hint="organization logo" />
                       <AvatarFallback>{currentOrganizer?.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                     </Avatar>
                     <span className="sr-only">Toggle user menu</span>
@@ -154,7 +154,7 @@ export function LandingHeader() {
               </SheetTrigger>
               <SheetContent side="left">
                 <nav className="grid gap-6 text-lg font-medium pt-8">
-                  <Logo />
+                  <Logo siteName={settings?.siteName} logoUrl={settings?.logoUrl} />
                   {publicNavLinks.map((link) => (
                     <Link
                       key={link.href}
@@ -184,3 +184,5 @@ export function LandingHeader() {
     </header>
   );
 }
+
+    

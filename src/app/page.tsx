@@ -1,42 +1,69 @@
 
-'use client';
+      'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket, QrCode, Users, BarChart2 } from 'lucide-react';
 import { LandingHeader } from '@/components/landing-header';
 import { useAuth } from '@/hooks/use-auth';
+import type { BrandingSettings } from '@/lib/types';
+import { getBrandingSettings } from '@/services/settingsService';
+import Image from 'next/image';
 
 export default function Home() {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
+  const [settings, setSettings] = React.useState<BrandingSettings | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+        try {
+            const fetchedSettings = await getBrandingSettings();
+            setSettings(fetchedSettings);
+        } catch (error) {
+            console.error("Failed to load branding settings", error);
+        } finally {
+            setLoading(false);
+        }
+    }
+    fetchSettings();
+  }, []);
+
+  const heroTitle = settings?.hero?.title || "Seamless Events, Secure Access.";
+  const heroSubtitle = settings?.hero?.subtitle || "GoPass is the all-in-one platform for modern event organizers. Create, manage, and verify tickets with unparalleled ease and security.";
+  const heroImageUrl = settings?.hero?.backgroundImageUrl;
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <LandingHeader />
-
+      {/* The header is now in the layout, so we don't need it here */}
       <main className="flex-grow">
-        <section className="text-center py-20 lg:py-32">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <h1 className="text-4xl lg:text-6xl font-bold tracking-tight text-primary-dark font-headline">
-              Seamless Events, Secure Access.
-            </h1>
-            <p className="mt-4 max-w-2xl mx-auto text-lg lg:text-xl text-foreground/80">
-              GoPass is the all-in-one platform for modern event organizers. Create, manage, and verify tickets with unparalleled ease and security.
-            </p>
-            <div className="mt-8 flex justify-center gap-4">
-              <Button size="lg" asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-                {user ? (
-                   <Link href="/dashboard">Go to Dashboard</Link>
-                ) : (
-                  <Link href="/register">Get Started Free</Link>
-                )}
-              </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link href="/select-event-for-scan">Scan Ticket</Link>
-              </Button>
+        <section className="relative text-center py-20 lg:py-32 flex items-center justify-center">
+            {heroImageUrl && (
+                <Image src={heroImageUrl} alt="Hero background" layout="fill" objectFit="cover" className="z-0" data-ai-hint="event crowd" />
+            )}
+             <div className="absolute inset-0 bg-black/60 z-10" />
+             <div className="container mx-auto px-4 sm:px-6 lg:px-8 z-20 text-white">
+                <h1 className="text-4xl lg:text-6xl font-bold tracking-tight font-headline">
+                    {heroTitle}
+                </h1>
+                <p className="mt-4 max-w-2xl mx-auto text-lg lg:text-xl text-white/90">
+                    {heroSubtitle}
+                </p>
+                <div className="mt-8 flex justify-center gap-4">
+                <Button size="lg" asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
+                    {user ? (
+                    <Link href="/dashboard">Go to Dashboard</Link>
+                    ) : (
+                    <Link href="/register">Get Started Free</Link>
+                    )}
+                </Button>
+                <Button size="lg" variant="outline" asChild className="bg-transparent border-white text-white hover:bg-white hover:text-black">
+                    <Link href="/select-event-for-scan">Scan Ticket</Link>
+                </Button>
+                </div>
             </div>
-          </div>
         </section>
 
         <section id="features" className="py-20 lg:py-24 bg-secondary/50">
@@ -72,12 +99,7 @@ export default function Home() {
           </div>
         </section>
       </main>
-
-      <footer className="py-8 border-t">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center text-foreground/60">
-          <p>&copy; {new Date().getFullYear()} GoPass. All rights reserved.</p>
-        </div>
-      </footer>
+      {/* Footer is now in the layout */}
     </div>
   );
 }
@@ -97,3 +119,5 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode, titl
     </Card>
   );
 }
+
+    

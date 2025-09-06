@@ -1,5 +1,5 @@
 
-import type { PlanId } from './plans';
+      import type { PlanId } from './plans';
 import type { Timestamp } from 'firebase/firestore';
 
 export interface UserProfile {
@@ -155,3 +155,30 @@ export interface Notification {
     createdAt: Timestamp;
     isRead: boolean;
 }
+
+export interface BrandingSettings {
+    siteName?: string;
+    logoUrl?: string | null;
+    iconUrl?: string | null;
+    colors?: {
+        primary: string;
+        accent: string;
+        background: string;
+    };
+    hero?: {
+        title: string;
+        subtitle: string;
+        backgroundImageUrl?: string | null;
+    };
+    footer?: {
+        copyrightText: string;
+    };
+    contact?: {
+        email: string;
+        phone: string;
+        address: string;
+    };
+    lastUpdated?: Timestamp;
+}
+
+    
