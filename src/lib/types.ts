@@ -27,6 +27,10 @@ export interface PayoutRequest {
     processedAt?: Timestamp;
 }
 
+export interface PayoutRequestWithOrganizer extends PayoutRequest {
+    organizer?: Organizer;
+}
+
 export interface Organizer {
     id: string;
     userId: string;

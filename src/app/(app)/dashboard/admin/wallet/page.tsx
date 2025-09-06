@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import type { PayoutRequest, Organizer } from '@/lib/types';
+import type { PayoutRequest, Organizer, PayoutRequestWithOrganizer } from '@/lib/types';
 import { getAllPayoutRequests, processPayoutRequest } from '@/services/userService';
 import { getOrganizerById } from '@/services/organizerService';
 import { format } from 'date-fns';
@@ -14,10 +14,6 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-
-interface PayoutRequestWithOrganizer extends PayoutRequest {
-    organizer?: Organizer;
-}
 
 export default function AdminWalletPage() {
     const { toast } = useToast();
