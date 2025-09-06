@@ -10,8 +10,10 @@ import { MoreHorizontal, Users, DollarSign, Activity, Settings as SettingsIcon }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 function OverviewTab() {
+    const { format } = useCurrency();
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
@@ -30,7 +32,7 @@ function OverviewTab() {
                     <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">$1,234.56</div>
+                    <div className="text-2xl font-bold">{format(1234.56)}</div>
                     <p className="text-xs text-muted-foreground">This month</p>
                 </CardContent>
             </Card>
@@ -59,6 +61,7 @@ function OverviewTab() {
 }
 
 function AffiliatesTab() {
+    const { format } = useCurrency();
     return (
         <Card>
             <CardHeader>
@@ -83,7 +86,7 @@ function AffiliatesTab() {
                             </TableCell>
                             <TableCell>Approved</TableCell>
                             <TableCell>25</TableCell>
-                            <TableCell className="text-right">$250.00</TableCell>
+                            <TableCell className="text-right">{format(250.00)}</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>

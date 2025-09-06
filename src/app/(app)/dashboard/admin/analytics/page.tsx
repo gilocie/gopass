@@ -11,6 +11,7 @@ import { getEvents } from '@/services/eventService';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format, subDays } from 'date-fns';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 // In a real app, this would be in a service file
 async function getAllTickets(): Promise<TicketType[]> {
@@ -24,6 +25,7 @@ export default function AdminAnalyticsPage() {
     const [events, setEvents] = React.useState<Event[]>([]);
     const [tickets, setTickets] = React.useState<TicketType[]>([]);
     const [loading, setLoading] = React.useState(true);
+    const { format: formatPrice } = useCurrency();
 
     React.useEffect(() => {
         const fetchData = async () => {
@@ -103,7 +105,7 @@ export default function AdminAnalyticsPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
+                        <div className="text-2xl font-bold">{formatPrice(totalRevenue)}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -121,7 +123,7 @@ export default function AdminAnalyticsPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${avgRevenuePerTicket.toFixed(2)}</div>
+                        <div className="text-2xl font-bold">{formatPrice(avgRevenuePerTicket)}</div>
                     </CardContent>
                 </Card>
             </div>
@@ -135,7 +137,7 @@ export default function AdminAnalyticsPage() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis />
-                            <Tooltip />
+                            <Tooltip formatter={(value: number) => formatPrice(value)} />
                             <Line type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" />
                         </LineChart>
                     </ResponsiveContainer>
@@ -164,7 +166,7 @@ export default function AdminAnalyticsPage() {
                                         <div className="font-medium">{event.name}</div>
                                     </TableCell>
                                     <TableCell className="text-right">{event.tickets}</TableCell>
-                                    <TableCell className="text-right">${event.revenue.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">{formatPrice(event.revenue)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>

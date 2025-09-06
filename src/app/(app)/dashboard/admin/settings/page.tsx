@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { sendMassNotification } from '@/ai/flows/send-mass-notification';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 function PlatformSettingsTab() {
     return (
@@ -100,6 +101,7 @@ function FeaturesTab() {
 }
 
 function PlansTab() {
+    const { format } = useCurrency();
     return (
         <Card>
             <CardHeader>
@@ -116,7 +118,7 @@ function PlansTab() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Plan Name</TableHead>
-                            <TableHead>Price (USD)</TableHead>
+                            <TableHead>Price</TableHead>
                             <TableHead className="hidden md:table-cell">Events Limit</TableHead>
                             <TableHead className="hidden md:table-cell">Tickets/Event</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -128,7 +130,7 @@ function PlansTab() {
                                 <TableCell>
                                     <div className="font-medium">{plan.name}</div>
                                 </TableCell>
-                                <TableCell>${plan.price}/mo</TableCell>
+                                <TableCell>{format(parseInt(plan.price))}/mo</TableCell>
                                 <TableCell className="hidden md:table-cell">{plan.limits.maxEvents}</TableCell>
                                 <TableCell className="hidden md:table-cell">{plan.limits.maxTicketsPerEvent}</TableCell>
                                 <TableCell className="text-right">
