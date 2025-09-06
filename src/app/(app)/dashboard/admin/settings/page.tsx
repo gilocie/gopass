@@ -9,13 +9,15 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, KeyRound } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Palette } from 'lucide-react';
 import { PLANS } from '@/lib/plans';
 import { getAllUserProfiles } from '@/services/userService';
 import type { UserProfile } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Banner } from '@/components/ui/banner';
+import { Separator } from '@/components/ui/separator';
 
 function PlatformSettingsTab() {
     return (
@@ -56,6 +58,63 @@ function PlatformSettingsTab() {
         </Card>
     );
 }
+
+function BrandingTab() {
+    // In a real app, these values would be fetched from a global settings document in Firestore
+    const [logoUrl, setLogoUrl] = React.useState<string | null>(null);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Branding & Appearance</CardTitle>
+                <CardDescription>Customize the look and feel of your GoPass platform.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+                <div className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-medium text-lg">Site Identity</h3>
+                    <div className="grid gap-2">
+                        <Label htmlFor="site-name">Site Name</Label>
+                        <Input id="site-name" defaultValue="GoPass" />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label>Site Logo</Label>
+                        <p className="text-sm text-muted-foreground">Recommended size: 400x100px.</p>
+                        <div className="w-full max-w-xs">
+                           <Banner initialImage={logoUrl} onImageChange={setLogoUrl} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-medium text-lg flex items-center gap-2"><Palette className="h-5 w-5" /> Color Scheme</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="primary-color">Primary Color</Label>
+                            <Input id="primary-color" type="color" defaultValue="#6D28D9" />
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="accent-color">Accent Color</Label>
+                            <Input id="accent-color" type="color" defaultValue="#E11D48" />
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="background-color">Background Color</Label>
+                            <Input id="background-color" type="color" defaultValue="#110d19" />
+                        </div>
+                    </div>
+                     <p className="text-xs text-muted-foreground">
+                        Changes to colors may require a page refresh to take full effect across the application.
+                    </p>
+                </div>
+                 <Separator />
+                 <h3 className="font-medium text-lg">More Coming Soon...</h3>
+                 <p className="text-sm text-muted-foreground">
+                    Controls for editing the Hero Section, Footer, Contact Details, and more will be added here.
+                 </p>
+            </CardContent>
+        </Card>
+    );
+}
+
 
 function FeaturesTab() {
     return (
@@ -233,8 +292,6 @@ function PromotionsTab() {
 }
 
 function ApiSettingsTab() {
-    const [isLiveMode, setIsLiveMode] = React.useState(false);
-
     return (
         <Card>
             <CardHeader>
@@ -247,7 +304,7 @@ function ApiSettingsTab() {
                         <h3 className="font-medium text-lg">PawaPay Credentials</h3>
                          <div className="flex items-center space-x-2">
                             <Label htmlFor="live-mode">Live Mode</Label>
-                            <Switch id="live-mode" checked={isLiveMode} onCheckedChange={setIsLiveMode} />
+                            <Switch id="live-mode" />
                         </div>
                     </div>
                      <Tabs defaultValue="sandbox">
@@ -290,8 +347,9 @@ export default function AdminSettingsPage() {
     return (
         <div className="grid gap-6">
             <Tabs defaultValue="platform" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 mb-6">
+                <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 mb-6">
                     <TabsTrigger value="platform">Platform</TabsTrigger>
+                    <TabsTrigger value="branding">Branding</TabsTrigger>
                     <TabsTrigger value="features">Features</TabsTrigger>
                     <TabsTrigger value="plans">Plans</TabsTrigger>
                     <TabsTrigger value="team">Team</TabsTrigger>
@@ -300,6 +358,9 @@ export default function AdminSettingsPage() {
                 </TabsList>
                 <TabsContent value="platform">
                     <PlatformSettingsTab />
+                </TabsContent>
+                <TabsContent value="branding">
+                    <BrandingTab />
                 </TabsContent>
                  <TabsContent value="features">
                     <FeaturesTab />
@@ -324,5 +385,3 @@ export default function AdminSettingsPage() {
         </div>
     );
 }
-
-    
