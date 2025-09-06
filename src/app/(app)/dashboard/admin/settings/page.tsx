@@ -157,7 +157,13 @@ function TeamTab() {
     React.useEffect(() => {
         const fetchUsers = async () => {
             const allUsers = await getAllUserProfiles();
-            setUsers(allUsers);
+            const uniqueUsersMap = new Map<string, UserProfile>();
+            allUsers.forEach(user => {
+                if (user && user.uid) {
+                    uniqueUsersMap.set(user.uid, user);
+                }
+            });
+            setUsers(Array.from(uniqueUsersMap.values()));
         };
         fetchUsers();
     }, []);

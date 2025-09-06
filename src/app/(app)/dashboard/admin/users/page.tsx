@@ -20,7 +20,14 @@ export default function AdminUsersPage() {
         const fetchUsers = async () => {
             try {
                 const allUsers = await getAllUserProfiles();
-                setUsers(allUsers);
+                // Ensure users are unique to prevent React key errors
+                const uniqueUsersMap = new Map<string, UserProfile>();
+                allUsers.forEach(user => {
+                    if (user && user.uid) {
+                        uniqueUsersMap.set(user.uid, user);
+                    }
+                });
+                setUsers(Array.from(uniqueUsersMap.values()));
             } catch (error) {
                 console.error("Failed to fetch users:", error);
             } finally {

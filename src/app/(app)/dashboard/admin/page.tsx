@@ -15,6 +15,7 @@ import { PLANS } from '@/lib/plans';
 
 // In a real app, we'd need a more efficient way to get all organizers
 async function getAllOrganizers(users: UserProfile[]): Promise<Organizer[]> {
+    if (!users || users.length === 0) return [];
     const organizerPromises = users.map(user => getOrganizersByUserId(user.uid));
     const organizerArrays = await Promise.all(organizerPromises);
     return organizerArrays.flat();
