@@ -24,6 +24,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Settings, Loader2, Menu } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
+import { getBrandingSettings } from '@/services/settingsService';
+import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 const publicNavLinks = [
     { href: '/events', label: 'Events' },
@@ -32,7 +35,7 @@ const publicNavLinks = [
     { href: '/contact', label: 'Contact' },
 ]
 
-export function LandingHeader({ settings }: { settings: BrandingSettings | null }) {
+export function LandingHeader() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -40,6 +43,19 @@ export function LandingHeader({ settings }: { settings: BrandingSettings | null 
   const [loadingOrganizers, setLoadingOrganizers] = React.useState(true);
   const [isNavigating, setIsNavigating] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [settings, setSettings] = React.useState<BrandingSettings | null>(null);
+
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const fetchedSettings = await getBrandingSettings();
+        setSettings(fetchedSettings);
+      } catch (error) {
+        console.error("Failed to load branding settings", error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   React.useEffect(() => {
     const fetchUserOrganizers = async () => {
@@ -86,64 +102,88 @@ export function LandingHeader({ settings }: { settings: BrandingSettings | null 
 
   const currentOrganizer = organizers[0];
   const userLogoUrl = currentOrganizer?.logoUrl;
+  
+  const headerSettings = settings?.header;
+  const backgroundStyle = headerSettings?.backgroundType === 'gradient'
+    ? { backgroundImage: `linear-gradient(to right, ${headerSettings.gradientStartColor}, ${headerSettings.gradientEndColor})` }
+    : { backgroundColor: headerSettings?.solidBackgroundColor || 'hsl(var(--background))' };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+    <header 
+        className="sticky top-0 z-50 w-full border-b"
+        style={backgroundStyle}
+    >
+        {headerSettings?.backgroundImageUrl && (
+            <div className="absolute inset-0 z-0">
+                <Image 
+                    src={headerSettings.backgroundImageUrl} 
+                    alt="Header background" 
+                    layout="fill" 
+                    objectFit="cover" 
+                    style={{ opacity: (headerSettings.backgroundOpacity ?? 10) / 100 }}
+                />
+                 <div className="absolute inset-0 bg-black/20" />
+            </div>
+        )}
+      <div className="relative z-10 container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Logo siteName={settings?.siteName} logoUrl={settings?.logoUrl} />
+          {(headerSettings?.showLogo ?? true) && <Logo siteName={settings?.siteName} logoUrl={settings?.logoUrl} />}
         </div>
 
-        <nav className="hidden md:flex items-center gap-4">
-            {publicNavLinks.map(link => (
-                <Button key={link.href} variant="link" asChild className="text-muted-foreground hover:text-primary">
-                    <Link href={link.href}>{link.label}</Link>
-                </Button>
-            ))}
-        </nav>
+        {(headerSettings?.showNav ?? true) && (
+            <nav className="hidden md:flex items-center gap-4">
+                {publicNavLinks.map(link => (
+                    <Button key={link.href} variant="link" asChild className="text-muted-foreground hover:text-primary">
+                        <Link href={link.href}>{link.label}</Link>
+                    </Button>
+                ))}
+            </nav>
+        )}
 
         <div className="flex items-center gap-4">
-          {authLoading ? (
-            <div className="h-10 w-24 bg-muted animate-pulse rounded-md" />
-          ) : user ? (
-            <>
-              <Button variant="ghost" asChild className="hidden sm:inline-flex">
-                <Link href="/dashboard" onClick={handleDashboardClick}>
-                  {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Dashboard
-                </Link>
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" className="rounded-full">
-                    <Avatar>
-                      <AvatarImage src={userLogoUrl || user.photoURL || "https://placehold.co/40x40.png"} alt="@organizer" data-ai-hint="organization logo" />
-                      <AvatarFallback>{currentOrganizer?.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-                    </Avatar>
-                    <span className="sr-only">Toggle user menu</span>
+          {(headerSettings?.showUser ?? true) && (
+              authLoading ? (
+                <div className="h-10 w-24 bg-muted animate-pulse rounded-md" />
+              ) : user ? (
+                <>
+                  <Button variant="ghost" asChild className="hidden sm:inline-flex">
+                    <Link href="/dashboard" onClick={handleDashboardClick}>
+                      {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Dashboard
+                    </Link>
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>Support</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          ) : (
-            <>
-              <Button variant="ghost" asChild className="hidden sm:inline-flex">
-                <Link href="/login">Log In</Link>
-              </Button>
-              <Button asChild className="hidden sm:inline-flex bg-accent text-accent-foreground hover:bg-accent/90">
-                <Link href="/register">Sign Up</Link>
-              </Button>
-            </>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="secondary" size="icon" className="rounded-full">
+                        <Avatar>
+                          <AvatarImage src={userLogoUrl || user.photoURL || "https://placehold.co/40x40.png"} alt="@organizer" data-ai-hint="organization logo" />
+                          <AvatarFallback>{currentOrganizer?.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                        </Avatar>
+                        <span className="sr-only">Toggle user menu</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>Support</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" asChild className="hidden sm:inline-flex">
+                    <Link href="/login">Log In</Link>
+                  </Button>
+                  <Button asChild className="hidden sm:inline-flex bg-accent text-accent-foreground hover:bg-accent/90">
+                    <Link href="/register">Sign Up</Link>
+                  </Button>
+                </>
+              )
           )}
            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
@@ -154,8 +194,8 @@ export function LandingHeader({ settings }: { settings: BrandingSettings | null 
               </SheetTrigger>
               <SheetContent side="left">
                 <nav className="grid gap-6 text-lg font-medium pt-8">
-                  <Logo siteName={settings?.siteName} logoUrl={settings?.logoUrl} />
-                  {publicNavLinks.map((link) => (
+                  {(headerSettings?.showLogo ?? true) && <Logo siteName={settings?.siteName} logoUrl={settings?.logoUrl} />}
+                  {(headerSettings?.showNav ?? true) && publicNavLinks.map((link) => (
                     <Link
                       key={link.href}
                       href={link.href}
@@ -166,7 +206,7 @@ export function LandingHeader({ settings }: { settings: BrandingSettings | null 
                     </Link>
                   ))}
                    <Separator />
-                   {!user && !authLoading && (
+                   {(!user && !authLoading && (headerSettings?.showUser ?? true)) && (
                      <div className="space-y-2">
                         <Button asChild className="w-full">
                             <Link href="/login">Log In</Link>
@@ -184,5 +224,3 @@ export function LandingHeader({ settings }: { settings: BrandingSettings | null 
     </header>
   );
 }
-
-    

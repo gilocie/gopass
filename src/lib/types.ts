@@ -165,6 +165,17 @@ export interface BrandingSettings {
         accent: string;
         background: string;
     };
+    header?: {
+        showLogo: boolean;
+        showNav: boolean;
+        showUser: boolean;
+        backgroundType: 'solid' | 'gradient';
+        solidBackgroundColor: string;
+        gradientStartColor: string;
+        gradientEndColor: string;
+        backgroundImageUrl?: string | null;
+        backgroundOpacity?: number;
+    };
     hero?: {
         title: string;
         subtitle: string;
@@ -180,5 +191,3 @@ export interface BrandingSettings {
     };
     lastUpdated?: Timestamp | string;
 }
-
-    

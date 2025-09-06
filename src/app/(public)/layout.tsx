@@ -1,29 +1,18 @@
 
       import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { LandingHeader } from "@/components/landing-header";
-import { getBrandingSettings } from "@/services/settingsService";
 
 export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const settings = await getBrandingSettings();
-  const copyrightText = settings?.footer?.copyrightText || `© ${new Date().getFullYear()} GoPass. All rights reserved.`;
-
   return (
     <CurrencyProvider>
       <div className="flex flex-col min-h-screen bg-background">
-        <LandingHeader settings={settings} />
+        <LandingHeader />
         <main className="flex-grow">{children}</main>
-        <footer className="py-8 border-t">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center text-foreground/60">
-            <p>{copyrightText}</p>
-          </div>
-        </footer>
       </div>
     </CurrencyProvider>
   );
 }
-
-    

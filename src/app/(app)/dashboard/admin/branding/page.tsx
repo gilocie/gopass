@@ -13,6 +13,10 @@ import { Textarea } from '@/components/ui/textarea';
 import type { BrandingSettings } from '@/lib/types';
 import { getBrandingSettings, updateBrandingSettings } from '@/services/settingsService';
 import { useToast } from '@/hooks/use-toast';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Paintbrush, Pipette } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 
 function GeneralTabContent({ settings, setSettings }: { settings: Partial<BrandingSettings>, setSettings: React.Dispatch<React.SetStateAction<Partial<BrandingSettings>>> }) {
     
@@ -69,6 +73,93 @@ function GeneralTabContent({ settings, setSettings }: { settings: Partial<Brandi
         </div>
     );
 }
+
+function HeaderTabContent({ settings, setSettings }: { settings: Partial<BrandingSettings>, setSettings: React.Dispatch<React.SetStateAction<Partial<BrandingSettings>>> }) {
+    const handleHeaderChange = (key: keyof BrandingSettings['header'], value: any) => {
+        setSettings(prev => ({ ...prev, header: { ...prev.header, [key]: value } }));
+    };
+     const handleHeaderColorChange = (key: 'gradientStartColor' | 'gradientEndColor' | 'solidBackgroundColor', value: string) => {
+        setSettings(prev => ({ ...prev, header: { ...prev.header, [key]: value } }));
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Header Settings</CardTitle>
+                <CardDescription>Customize the appearance and elements of the main site header.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+                 <div className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-medium text-lg">Header Elements</h3>
+                     <div className="space-y-4">
+                        <div className="flex items-center justify-between rounded-lg border p-3">
+                            <Label htmlFor="show-logo">Show Logo</Label>
+                            <Switch id="show-logo" checked={settings.header?.showLogo ?? true} onCheckedChange={checked => handleHeaderChange('showLogo', checked)} />
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg border p-3">
+                            <Label htmlFor="show-nav">Show Navigation Links</Label>
+                            <Switch id="show-nav" checked={settings.header?.showNav ?? true} onCheckedChange={checked => handleHeaderChange('showNav', checked)} />
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg border p-3">
+                            <Label htmlFor="show-user">Show User Profile/Login</Label>
+                            <Switch id="show-user" checked={settings.header?.showUser ?? true} onCheckedChange={checked => handleHeaderChange('showUser', checked)} />
+                        </div>
+                    </div>
+                 </div>
+
+                 <div className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-medium text-lg">Header Background</h3>
+                     <div className="grid gap-2">
+                        <Label>Background Type</Label>
+                        <RadioGroup value={settings.header?.backgroundType || 'solid'} onValueChange={(val) => handleHeaderChange('backgroundType', val as 'solid' | 'gradient')} className="flex items-center gap-4">
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="solid" id="solid" />
+                                <Label htmlFor="solid" className="font-normal flex items-center gap-1.5"><Paintbrush className="h-3.5 w-3.5"/> Solid</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="gradient" id="gradient" />
+                                <Label htmlFor="gradient" className="font-normal flex items-center gap-1.5"><Pipette className="h-3.5 w-3.5"/> Gradient</Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+                     {settings.header?.backgroundType === 'solid' ? (
+                        <div className="grid gap-1.5 animate-in fade-in">
+                            <Label htmlFor="solid-bg-color">Background Color</Label>
+                            <Input id="solid-bg-color" type="color" value={settings.header?.solidBackgroundColor || '#110d19'} onChange={(e) => handleHeaderColorChange('solidBackgroundColor', e.target.value)} />
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-2 animate-in fade-in">
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="gradient-start">Start</Label>
+                                <Input id="gradient-start" type="color" value={settings.header?.gradientStartColor || '#110d19'} onChange={(e) => handleHeaderColorChange('gradientStartColor', e.target.value)} />
+                            </div>
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="gradient-end">End</Label>
+                                <Input id="gradient-end" type="color" value={settings.header?.gradientEndColor || '#2b1f42'} onChange={(e) => handleHeaderColorChange('gradientEndColor', e.target.value)} />
+                            </div>
+                        </div>
+                    )}
+                 </div>
+
+                <div className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-medium text-lg">Background Overlay</h3>
+                    <div className="grid gap-2">
+                        <Label>Overlay Background Image</Label>
+                        <p className="text-sm text-muted-foreground">Optional. Recommended size: 1920x100px.</p>
+                        <Banner initialImage={settings.header?.backgroundImageUrl} onImageChange={url => handleHeaderChange('backgroundImageUrl', url)} />
+                    </div>
+                    {settings.header?.backgroundImageUrl && (
+                        <div className="grid gap-1.5 mt-2">
+                            <Label>Image Opacity</Label>
+                            <Slider defaultValue={[settings.header?.backgroundOpacity ?? 10]} max={100} step={1} onValueChange={(value) => handleHeaderChange('backgroundOpacity', value[0])}/>
+                        </div>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 
 function HomePageTabContent({ settings, setSettings }: { settings: Partial<BrandingSettings>, setSettings: React.Dispatch<React.SetStateAction<Partial<BrandingSettings>>> }) {
     
@@ -178,6 +269,17 @@ export default function AdminBrandingPage() {
             accent: "#E11D48",
             background: "#110d19",
         },
+        header: {
+            showLogo: true,
+            showNav: true,
+            showUser: true,
+            backgroundType: 'solid',
+            solidBackgroundColor: '#110d19',
+            gradientStartColor: '#110d19',
+            gradientEndColor: '#2b1f42',
+            backgroundImageUrl: null,
+            backgroundOpacity: 10,
+        },
         hero: {
             title: "Seamless Events, Secure Access.",
             subtitle: "GoPass is the all-in-one platform for modern event organizers. Create, manage, and verify tickets with unparalleled ease and security.",
@@ -234,15 +336,19 @@ export default function AdminBrandingPage() {
                 </CardHeader>
                 <CardContent>
                     <Tabs defaultValue="general" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-6">
+                        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 mb-6">
                             <TabsTrigger value="general">General</TabsTrigger>
+                            <TabsTrigger value="header">Header</TabsTrigger>
                             <TabsTrigger value="home">Home Page</TabsTrigger>
                             <TabsTrigger value="footer">Footer</TabsTrigger>
-                            <TabsTrigger value="contact">Contact Page</TabsTrigger>
+                            <TabsTrigger value="contact">Contact</TabsTrigger>
                             <TabsTrigger value="typography">Typography</TabsTrigger>
                         </TabsList>
                         <TabsContent value="general">
                             <GeneralTabContent settings={settings} setSettings={setSettings} />
+                        </TabsContent>
+                        <TabsContent value="header">
+                           <HeaderTabContent settings={settings} setSettings={setSettings} />
                         </TabsContent>
                         <TabsContent value="home">
                            <HomePageTabContent settings={settings} setSettings={setSettings} />
@@ -268,5 +374,3 @@ export default function AdminBrandingPage() {
         </div>
     );
 }
-
-    
