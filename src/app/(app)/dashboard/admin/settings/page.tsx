@@ -6,45 +6,260 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { MoreHorizontal, PlusCircle, Trash2 } from 'lucide-react';
+import { PLANS } from '@/lib/plans';
+import { getAllUserProfiles } from '@/services/userService';
+import type { UserProfile } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+
+function PlatformSettingsTab() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Platform Settings</CardTitle>
+                <CardDescription>Manage global settings for the GoPass platform.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="maintenance-mode" className="text-base">Maintenance Mode</Label>
+                        <p className="text-sm text-muted-foreground">
+                            Temporarily disable access to the public site for maintenance. Admins will still be able to log in.
+                        </p>
+                    </div>
+                    <Switch id="maintenance-mode" />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="new-registrations" className="text-base">Enable New Registrations</Label>
+                        <p className="text-sm text-muted-foreground">
+                            Allow new users to sign up for accounts.
+                        </p>
+                    </div>
+                    <Switch id="new-registrations" defaultChecked />
+                </div>
+                 <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="event-creation" className="text-base">Enable Event Creation</Label>
+                        <p className="text-sm text-muted-foreground">
+                            Allow organizers to create new events.
+                        </p>
+                    </div>
+                    <Switch id="event-creation" defaultChecked />
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function FeaturesTab() {
+    return (
+         <Card>
+            <CardHeader>
+                <CardTitle>Feature Flags</CardTitle>
+                <CardDescription>Enable or disable specific features across the platform.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                 <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="online-payment" className="text-base">Online Ticket Payments</Label>
+                        <p className="text-sm text-muted-foreground">
+                           Allow attendees to pay for tickets online via mobile money.
+                        </p>
+                    </div>
+                    <Switch id="online-payment" defaultChecked />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="org-page-creation" className="text-base">Organization Page Creation</Label>
+                        <p className="text-sm text-muted-foreground">
+                           Allow users to create public-facing organizer pages.
+                        </p>
+                    </div>
+                    <Switch id="org-page-creation" defaultChecked />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="ai-description" className="text-base">AI Event Descriptions</Label>
+                        <p className="text-sm text-muted-foreground">
+                           Enable the AI-powered event description generator.
+                        </p>
+                    </div>
+                    <Switch id="ai-description" defaultChecked />
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function PlansTab() {
+    return (
+        <Card>
+            <CardHeader>
+                 <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Subscription Plans</CardTitle>
+                        <CardDescription>Manage pricing plans available to users.</CardDescription>
+                    </div>
+                    <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Create Plan</Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Plan Name</TableHead>
+                            <TableHead>Price (USD)</TableHead>
+                            <TableHead className="hidden md:table-cell">Events Limit</TableHead>
+                            <TableHead className="hidden md:table-cell">Tickets/Event</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {Object.entries(PLANS).map(([planId, plan]) => (
+                             <TableRow key={planId}>
+                                <TableCell>
+                                    <div className="font-medium">{plan.name}</div>
+                                </TableCell>
+                                <TableCell>${plan.price}/mo</TableCell>
+                                <TableCell className="hidden md:table-cell">{plan.limits.maxEvents}</TableCell>
+                                <TableCell className="hidden md:table-cell">{plan.limits.maxTicketsPerEvent}</TableCell>
+                                <TableCell className="text-right">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem>Edit Plan</DropdownMenuItem>
+                                            <DropdownMenuItem className="text-destructive">Delete Plan</DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}
+
+function TeamTab() {
+    const [users, setUsers] = React.useState<UserProfile[]>([]);
+    
+    React.useEffect(() => {
+        const fetchUsers = async () => {
+            const allUsers = await getAllUserProfiles();
+            setUsers(allUsers);
+        };
+        fetchUsers();
+    }, []);
+
+    return (
+         <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Team Management</CardTitle>
+                        <CardDescription>Invite and manage administrative users.</CardDescription>
+                    </div>
+                    <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add User</Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>User</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                         {users.map((user) => (
+                             <TableRow key={user.uid}>
+                                <TableCell>
+                                    <div className="font-medium">{user.displayName || 'Unnamed User'}</div>
+                                    <div className="text-sm text-muted-foreground">{user.email}</div>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant={user.isAdmin ? 'default' : 'secondary'}>{user.isAdmin ? 'Admin' : 'Subscriber'}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem>Change Role</DropdownMenuItem>
+                                            <DropdownMenuItem className="text-destructive">Remove User</DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}
+
+function PromotionsTab() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Marketing & Promotions</CardTitle>
+                <CardDescription>Create marketing campaigns and send platform-wide notifications.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="grid gap-2">
+                    <Label htmlFor="promo-title">Notification Title</Label>
+                    <Input id="promo-title" placeholder="e.g., New Feature Alert!" />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="promo-message">Message</Label>
+                    <Textarea id="promo-message" placeholder="Describe the announcement or promotion..." />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="promo-link">Link (Optional)</Label>
+                    <Input id="promo-link" placeholder="/pricing" />
+                </div>
+                 <Button>Send Notification to All Users</Button>
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function AdminSettingsPage() {
     return (
         <div className="grid gap-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Platform Settings</CardTitle>
-                    <CardDescription>Manage global settings for the GoPass platform.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="flex items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                            <Label htmlFor="maintenance-mode" className="text-base">Maintenance Mode</Label>
-                            <p className="text-sm text-muted-foreground">
-                                Temporarily disable access to the public site for maintenance. Admins will still be able to log in.
-                            </p>
-                        </div>
-                        <Switch id="maintenance-mode" />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                            <Label htmlFor="new-registrations" className="text-base">Enable New Registrations</Label>
-                            <p className="text-sm text-muted-foreground">
-                                Allow new users to sign up for accounts.
-                            </p>
-                        </div>
-                        <Switch id="new-registrations" defaultChecked />
-                    </div>
-                     <div className="flex items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                            <Label htmlFor="event-creation" className="text-base">Enable Event Creation</Label>
-                            <p className="text-sm text-muted-foreground">
-                                Allow organizers to create new events.
-                            </p>
-                        </div>
-                        <Switch id="event-creation" defaultChecked />
-                    </div>
-                </CardContent>
-            </Card>
+            <Tabs defaultValue="platform" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-6">
+                    <TabsTrigger value="platform">Platform</TabsTrigger>
+                    <TabsTrigger value="features">Features</TabsTrigger>
+                    <TabsTrigger value="plans">Plans</TabsTrigger>
+                    <TabsTrigger value="team">Team</TabsTrigger>
+                    <TabsTrigger value="promotions">Promotions</TabsTrigger>
+                </TabsList>
+                <TabsContent value="platform">
+                    <PlatformSettingsTab />
+                </TabsContent>
+                 <TabsContent value="features">
+                    <FeaturesTab />
+                </TabsContent>
+                <TabsContent value="plans">
+                    <PlansTab />
+                </TabsContent>
+                 <TabsContent value="team">
+                    <TeamTab />
+                </TabsContent>
+                <TabsContent value="promotions">
+                    <PromotionsTab />
+                </TabsContent>
+            </Tabs>
+
              <div className="flex justify-end">
                 <Button>Save Settings</Button>
             </div>
