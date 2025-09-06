@@ -22,7 +22,7 @@ import type { Organizer, BrandingSettings } from '@/lib/types';
 import { getOrganizersByUserId } from '@/services/organizerService';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Loader2, Menu } from 'lucide-react';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { getBrandingSettings } from '@/services/settingsService';
 import { cn } from '@/lib/utils';
@@ -205,6 +205,10 @@ export function LandingHeader() {
                     color: typography?.mobileMenuTextColor,
                 }}
               >
+                <SheetTitle className="sr-only">Mobile Menu</SheetTitle>
+                <SheetDescription className="sr-only">
+                    A list of navigation links for the site.
+                </SheetDescription>
                 <nav className="grid gap-6 text-lg font-medium pt-8">
                   {(headerSettings?.showLogo ?? true) && <Logo siteName={settings?.siteName} logoUrl={settings?.logoUrl} />}
                   {(headerSettings?.showNav ?? true) && publicNavLinks.map((link) => (
