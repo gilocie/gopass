@@ -278,6 +278,16 @@ function ApiSettingsTab() {
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-medium text-lg">Google AI</h3>
+                    <div className="grid gap-2">
+                        <Label htmlFor="gemini-api-key">Gemini API Key</Label>
+                        <Input id="gemini-api-key" type="password" placeholder="Enter your Gemini API Key" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        This key is used for AI features like event description generation.
+                    </p>
+                </div>
+                <div className="space-y-4 p-4 border rounded-lg">
                     <div className="flex justify-between items-center">
                         <h3 className="font-medium text-lg">PawaPay Credentials</h3>
                          <div className="flex items-center space-x-2">
@@ -359,5 +369,3 @@ export default function AdminSettingsPage() {
         </div>
     );
 }
-
-    
