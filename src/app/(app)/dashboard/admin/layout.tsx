@@ -15,9 +15,9 @@ const adminNavItems = [
   { href: '/dashboard/admin/events', icon: Calendar, label: 'Events' },
   { href: '/dashboard/admin/organizers', icon: Building, label: 'Organizers' },
   { href: '/dashboard/admin/analytics', icon: BarChart2, label: 'Analytics' },
-  { href: '/dashboard/admin/settings', icon: Settings, label: 'Settings' },
   { href: '/dashboard/admin/branding', icon: Palette, label: 'Branding' },
   { href: '/dashboard/admin/affiliates', icon: Share2, label: 'Affiliates' },
+  { href: '/dashboard/admin/settings', icon: Settings, label: 'Settings' },
 ];
 
 export default function AdminLayout({

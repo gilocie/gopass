@@ -5,14 +5,16 @@ import * as React from 'react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DollarSign, Ticket, Users } from 'lucide-react';
-import type { Event, Ticket as TicketType } from '@/lib/types';
+import { DollarSign, Ticket, Users, ArrowUpCircle } from 'lucide-react';
+import type { Event, Ticket as TicketType, UserProfile } from '@/lib/types';
 import { getEvents } from '@/services/eventService';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format, subDays } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { BASE_CURRENCY_CODE } from '@/lib/currency';
+import { getAllUserProfiles } from '@/services/userService';
+import { PLANS } from '@/lib/plans';
 
 // In a real app, this would be in a service file
 async function getAllTickets(): Promise<TicketType[]> {
@@ -25,18 +27,21 @@ async function getAllTickets(): Promise<TicketType[]> {
 export default function AdminAnalyticsPage() {
     const [events, setEvents] = React.useState<Event[]>([]);
     const [tickets, setTickets] = React.useState<TicketType[]>([]);
+    const [users, setUsers] = React.useState<UserProfile[]>([]);
     const [loading, setLoading] = React.useState(true);
     const { format: formatPrice, convert, currency: userCurrency, exchangeRates } = useCurrency();
 
     React.useEffect(() => {
         const fetchData = async () => {
             try {
-                const [allEvents, allTickets] = await Promise.all([
+                const [allEvents, allTickets, allUsers] = await Promise.all([
                     getEvents(),
-                    getAllTickets()
+                    getAllTickets(),
+                    getAllUserProfiles()
                 ]);
                 setEvents(allEvents);
                 setTickets(allTickets);
+                setUsers(allUsers);
             } catch (error) {
                 console.error("Failed to fetch analytics data:", error);
             } finally {
@@ -61,6 +66,24 @@ export default function AdminAnalyticsPage() {
             return acc + (amount / rate);
         }, 0);
     }, [tickets, events, exchangeRates]);
+
+    const totalUpgradeRevenue = React.useMemo(() => {
+        return users.reduce((acc, user) => {
+            if (user.upgradeHistory) {
+                const userRevenue = user.upgradeHistory.reduce((userAcc, upgrade) => {
+                    const plan = PLANS[upgrade.planId];
+                    // Skip 'hobby' plan as it's free
+                    if (plan && plan.price !== '0') {
+                        return userAcc + parseFloat(plan.price);
+                    }
+                    return userAcc;
+                }, 0);
+                return acc + userRevenue;
+            }
+            return acc;
+        }, 0);
+    }, [users]);
+
 
     const totalTicketsSold = tickets.length;
     const avgRevenuePerTicket = totalTicketsSold > 0 ? totalRevenueInBaseCurrency / totalTicketsSold : 0;
@@ -128,14 +151,23 @@ export default function AdminAnalyticsPage() {
              <div className="flex items-center">
                 <h1 className="text-lg font-semibold md:text-2xl">Financial Analytics</h1>
             </div>
-             <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
+             <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                        <CardTitle className="text-sm font-medium">Total Ticket Revenue</CardTitle>
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{formatPrice(totalRevenueInBaseCurrency)}</div>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Upgrade Revenue</CardTitle>
+                        <ArrowUpCircle className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{formatPrice(totalUpgradeRevenue)}</div>
                     </CardContent>
                 </Card>
                 <Card>
