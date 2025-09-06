@@ -12,7 +12,17 @@ import { Palette } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 
-function GeneralTabContent({ logoUrl, setLogoUrl }: { logoUrl: string | null, setLogoUrl: (url: string | null) => void }) {
+function GeneralTabContent({ 
+    logoUrl, 
+    setLogoUrl,
+    iconUrl,
+    setIconUrl,
+}: { 
+    logoUrl: string | null, 
+    setLogoUrl: (url: string | null) => void,
+    iconUrl: string | null,
+    setIconUrl: (url: string | null) => void 
+}) {
     return (
         <div className="space-y-8">
             <div className="space-y-4 p-4 border rounded-lg">
@@ -21,11 +31,20 @@ function GeneralTabContent({ logoUrl, setLogoUrl }: { logoUrl: string | null, se
                     <Label htmlFor="site-name">Site Name</Label>
                     <Input id="site-name" defaultValue="GoPass" />
                 </div>
-                <div className="grid gap-2">
-                    <Label>Site Logo</Label>
-                    <p className="text-sm text-muted-foreground">Recommended size: 400x100px.</p>
-                    <div className="w-full max-w-xs">
-                    <Banner initialImage={logoUrl} onImageChange={setLogoUrl} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                        <Label>Site Logo</Label>
+                        <p className="text-sm text-muted-foreground">Recommended size: 400x100px.</p>
+                        <div className="w-full max-w-xs">
+                        <Banner initialImage={logoUrl} onImageChange={setLogoUrl} />
+                        </div>
+                    </div>
+                     <div className="grid gap-2">
+                        <Label>Site Icon (Favicon)</Label>
+                        <p className="text-sm text-muted-foreground">Recommended size: 32x32px.</p>
+                        <div className="w-full max-w-xs">
+                        <Banner initialImage={iconUrl} onImageChange={setIconUrl} />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -141,6 +160,7 @@ function TypographyTabContent() {
 export default function AdminBrandingPage() {
     // In a real app, these values would be fetched from a global settings document in Firestore
     const [logoUrl, setLogoUrl] = React.useState<string | null>(null);
+    const [iconUrl, setIconUrl] = React.useState<string | null>(null);
 
     return (
         <div className="grid gap-6">
@@ -159,7 +179,12 @@ export default function AdminBrandingPage() {
                             <TabsTrigger value="typography">Typography</TabsTrigger>
                         </TabsList>
                         <TabsContent value="general">
-                            <GeneralTabContent logoUrl={logoUrl} setLogoUrl={setLogoUrl} />
+                            <GeneralTabContent 
+                                logoUrl={logoUrl} 
+                                setLogoUrl={setLogoUrl}
+                                iconUrl={iconUrl}
+                                setIconUrl={setIconUrl}
+                            />
                         </TabsContent>
                         <TabsContent value="home">
                            <HomePageTabContent />
