@@ -9,13 +9,15 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
 import { PLANS } from '@/lib/plans';
 import { getAllUserProfiles } from '@/services/userService';
 import type { UserProfile } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { sendMassNotification } from '@/ai/flows/send-mass-notification';
 
 function PlatformSettingsTab() {
     return (
@@ -207,6 +209,38 @@ function TeamTab() {
 }
 
 function PromotionsTab() {
+    const { toast } = useToast();
+    const [title, setTitle] = React.useState('');
+    const [message, setMessage] = React.useState('');
+    const [link, setLink] = React.useState('');
+    const [isSending, setIsSending] = React.useState(false);
+
+    const handleSend = async () => {
+        if (!title || !message) {
+            toast({ variant: 'destructive', title: 'Missing Information', description: 'Please provide a title and a message.' });
+            return;
+        }
+        setIsSending(true);
+        try {
+            const result = await sendMassNotification({ title, message, link });
+            toast({
+                title: 'Notifications Sent!',
+                description: `${result.count} users have been notified.`,
+            });
+            setTitle('');
+            setMessage('');
+            setLink('');
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: 'Failed to Send',
+                description: 'An error occurred while sending notifications.',
+            });
+        } finally {
+            setIsSending(false);
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -216,17 +250,20 @@ function PromotionsTab() {
             <CardContent className="space-y-6">
                 <div className="grid gap-2">
                     <Label htmlFor="promo-title">Notification Title</Label>
-                    <Input id="promo-title" placeholder="e.g., New Feature Alert!" />
+                    <Input id="promo-title" placeholder="e.g., New Feature Alert!" value={title} onChange={(e) => setTitle(e.target.value)} />
                 </div>
                 <div className="grid gap-2">
                     <Label htmlFor="promo-message">Message</Label>
-                    <Textarea id="promo-message" placeholder="Describe the announcement or promotion..." />
+                    <Textarea id="promo-message" placeholder="Describe the announcement or promotion..." value={message} onChange={(e) => setMessage(e.target.value)} />
                 </div>
                 <div className="grid gap-2">
                     <Label htmlFor="promo-link">Link (Optional)</Label>
-                    <Input id="promo-link" placeholder="/pricing" />
+                    <Input id="promo-link" placeholder="/pricing" value={link} onChange={(e) => setLink(e.target.value)} />
                 </div>
-                 <Button>Send Notification to All Users</Button>
+                 <Button onClick={handleSend} disabled={isSending}>
+                    {isSending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSending ? 'Sending...' : 'Send Notification to All Users'}
+                </Button>
             </CardContent>
         </Card>
     );
@@ -322,3 +359,5 @@ export default function AdminSettingsPage() {
         </div>
     );
 }
+
+    
