@@ -35,7 +35,7 @@ export default function Home() {
   const heroImageUrl = settings?.hero?.backgroundImageUrl;
 
   return (
-    <main className="flex-grow">
+    <div className="flex flex-col flex-grow">
       <section className="relative text-center py-20 lg:py-32 flex items-center justify-center">
           {heroImageUrl && (
               <Image src={heroImageUrl} alt="Hero background" layout="fill" objectFit="cover" className="z-0" data-ai-hint="event crowd" />
@@ -95,7 +95,7 @@ export default function Home() {
           </div>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 
