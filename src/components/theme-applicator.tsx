@@ -1,5 +1,5 @@
 
-      'use client';
+'use client';
 
 import * as React from 'react';
 import { getBrandingSettings } from '@/services/settingsService';
@@ -43,22 +43,26 @@ export function ThemeApplicator() {
     React.useEffect(() => {
         const fetchAndApplyTheme = async () => {
             const settings = await getBrandingSettings();
-            if (settings && settings.colors) {
-                const { primary, accent, background } = settings.colors;
-                const primaryHsl = hexToHsl(primary);
-                const accentHsl = hexToHsl(accent);
-                const backgroundHsl = hexToHsl(background);
+            if (settings) {
+                const { colors, typography } = settings;
+                const primaryHsl = colors?.primary ? hexToHsl(colors.primary) : null;
+                const accentHsl = colors?.accent ? hexToHsl(colors.accent) : null;
+                const backgroundHsl = colors?.background ? hexToHsl(colors.background) : null;
 
                 const newStyle = `
                     :root {
                         ${backgroundHsl ? `--background: ${backgroundHsl};` : ''}
                         ${primaryHsl ? `--primary: ${primaryHsl};` : ''}
                         ${accentHsl ? `--accent: ${accentHsl};` : ''}
+                        ${typography?.headerLinkColor ? `--header-link-color: ${typography.headerLinkColor};` : ''}
+                        ${typography?.headerLinkHoverColor ? `--header-link-hover-color: ${typography.headerLinkHoverColor};` : ''}
                     }
                     .dark {
                         ${backgroundHsl ? `--background: ${backgroundHsl};` : ''}
                         ${primaryHsl ? `--primary: ${primaryHsl};` : ''}
                         ${accentHsl ? `--accent: ${accentHsl};` : ''}
+                        ${typography?.headerLinkColor ? `--header-link-color: ${typography.headerLinkColor};` : ''}
+                        ${typography?.headerLinkHoverColor ? `--header-link-hover-color: ${typography.headerLinkHoverColor};` : ''}
                     }
                 `;
                 setStyle(newStyle);
@@ -70,5 +74,3 @@ export function ThemeApplicator() {
 
     return <style>{style}</style>;
 }
-
-    

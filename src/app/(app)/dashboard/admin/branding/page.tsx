@@ -1,5 +1,5 @@
 
-      'use client';
+'use client';
 
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Paintbrush, Pipette } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 
 function GeneralTabContent({ settings, setSettings }: { settings: Partial<BrandingSettings>, setSettings: React.Dispatch<React.SetStateAction<Partial<BrandingSettings>>> }) {
     
@@ -239,15 +240,52 @@ function ContactTabContent({ settings, setSettings }: { settings: Partial<Brandi
     );
 }
 
-function TypographyTabContent() {
-     return (
+function TypographyTabContent({ settings, setSettings }: { settings: Partial<BrandingSettings>, setSettings: React.Dispatch<React.SetStateAction<Partial<BrandingSettings>>> }) {
+    const handleTypographyChange = (key: keyof NonNullable<BrandingSettings['typography']>, value: string) => {
+        setSettings(prev => ({ ...prev, typography: { ...prev.typography, [key]: value } }));
+    };
+
+    return (
          <Card>
             <CardHeader>
-                <CardTitle>Typography</CardTitle>
-                <CardDescription>Manage the fonts and text styles used across your site.</CardDescription>
+                <CardTitle>Typography & Styling</CardTitle>
+                <CardDescription>Manage fonts and advanced color styles used across your site.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <p className="text-muted-foreground">Font selection and styling options coming soon.</p>
+            <CardContent className="space-y-8">
+                 <div className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-medium text-lg">Header Navigation Links</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="link-color">Default Color</Label>
+                            <Input id="link-color" type="color" value={settings.typography?.headerLinkColor || '#FFFFFF'} onChange={(e) => handleTypographyChange('headerLinkColor', e.target.value)} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="link-hover-color">Hover Color</Label>
+                            <Input id="link-hover-color" type="color" value={settings.typography?.headerLinkHoverColor || '#E11D48'} onChange={(e) => handleTypographyChange('headerLinkHoverColor', e.target.value)} />
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="link-active-color">Active Color</Label>
+                            <Input id="link-active-color" type="color" value={settings.typography?.headerLinkActiveColor || '#6D28D9'} onChange={(e) => handleTypographyChange('headerLinkActiveColor', e.target.value)} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-medium text-lg">Mobile Menu Styling</h3>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="mobile-bg">Background Color</Label>
+                            <Input id="mobile-bg" type="color" value={settings.typography?.mobileMenuBackgroundColor || '#110d19'} onChange={(e) => handleTypographyChange('mobileMenuBackgroundColor', e.target.value)} />
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="mobile-text">Text Color</Label>
+                            <Input id="mobile-text" type="color" value={settings.typography?.mobileMenuTextColor || '#FFFFFF'} onChange={(e) => handleTypographyChange('mobileMenuTextColor', e.target.value)} />
+                        </div>
+                    </div>
+                </div>
+
+                <p className="text-muted-foreground text-sm">More font and text style options are coming soon.</p>
+
             </CardContent>
         </Card>
     );
@@ -292,6 +330,13 @@ export default function AdminBrandingPage() {
             email: "support@gopass.app",
             phone: "+1 (555) 123-4567",
             address: "123 Event Lane, Celebration City, USA"
+        },
+        typography: {
+            headerLinkColor: '#FFFFFF',
+            headerLinkHoverColor: '#E11D48',
+            headerLinkActiveColor: '#6D28D9',
+            mobileMenuBackgroundColor: '#110d19',
+            mobileMenuTextColor: '#FFFFFF',
         }
     };
 
@@ -300,7 +345,18 @@ export default function AdminBrandingPage() {
             setLoading(true);
             try {
                 const fetchedSettings = await getBrandingSettings();
-                setSettings(fetchedSettings || defaultSettings);
+                // Deep merge fetched settings with defaults to ensure new properties are present
+                const mergedSettings = {
+                    ...defaultSettings,
+                    ...fetchedSettings,
+                    colors: { ...defaultSettings.colors, ...fetchedSettings?.colors },
+                    header: { ...defaultSettings.header, ...fetchedSettings?.header },
+                    hero: { ...defaultSettings.hero, ...fetchedSettings?.hero },
+                    footer: { ...defaultSettings.footer, ...fetchedSettings?.footer },
+                    contact: { ...defaultSettings.contact, ...fetchedSettings?.contact },
+                    typography: { ...defaultSettings.typography, ...fetchedSettings?.typography },
+                };
+                setSettings(mergedSettings);
             } catch (error) {
                 toast({ variant: 'destructive', title: 'Error', description: 'Could not load branding settings.' });
                 setSettings(defaultSettings);
@@ -360,7 +416,7 @@ export default function AdminBrandingPage() {
                            <ContactTabContent settings={settings} setSettings={setSettings} />
                         </TabsContent>
                          <TabsContent value="typography">
-                           <TypographyTabContent />
+                           <TypographyTabContent settings={settings} setSettings={setSettings}/>
                         </TabsContent>
                     </Tabs>
                 </CardContent>

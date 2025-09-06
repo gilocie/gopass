@@ -1,5 +1,5 @@
 
-      'use client';
+'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
@@ -104,6 +104,8 @@ export function LandingHeader() {
   const userLogoUrl = currentOrganizer?.logoUrl;
   
   const headerSettings = settings?.header;
+  const typography = settings?.typography;
+  
   const backgroundStyle = headerSettings?.backgroundType === 'gradient'
     ? { backgroundImage: `linear-gradient(to right, ${headerSettings.gradientStartColor}, ${headerSettings.gradientEndColor})` }
     : { backgroundColor: headerSettings?.solidBackgroundColor || 'hsl(var(--background))' };
@@ -111,16 +113,20 @@ export function LandingHeader() {
   return (
     <header 
         className="sticky top-0 z-50 w-full border-b"
-        style={backgroundStyle}
+        style={{
+            ...backgroundStyle,
+            '--header-link-color': typography?.headerLinkColor,
+            '--header-link-hover-color': typography?.headerLinkHoverColor,
+            '--header-link-active-color': typography?.headerLinkActiveColor,
+        } as React.CSSProperties}
     >
         {headerSettings?.backgroundImageUrl && (
             <div className="absolute inset-0 z-0">
                 <Image 
                     src={headerSettings.backgroundImageUrl} 
                     alt="Header background" 
-                    layout="fill" 
-                    objectFit="cover" 
-                    style={{ opacity: (headerSettings.backgroundOpacity ?? 10) / 100 }}
+                    fill
+                    style={{ objectFit: 'cover', opacity: (headerSettings.backgroundOpacity ?? 10) / 100 }}
                 />
                  <div className="absolute inset-0 bg-black/20" />
             </div>
@@ -133,7 +139,7 @@ export function LandingHeader() {
         {(headerSettings?.showNav ?? true) && (
             <nav className="hidden md:flex items-center gap-4">
                 {publicNavLinks.map(link => (
-                    <Button key={link.href} variant="link" asChild className="text-muted-foreground hover:text-primary">
+                    <Button key={link.href} variant="link" asChild className="text-[var(--header-link-color)] hover:text-[var(--header-link-hover-color)] transition-colors">
                         <Link href={link.href}>{link.label}</Link>
                     </Button>
                 ))}
@@ -143,10 +149,10 @@ export function LandingHeader() {
         <div className="flex items-center gap-4">
           {(headerSettings?.showUser ?? true) && (
               authLoading ? (
-                <div className="h-10 w-24 bg-muted animate-pulse rounded-md" />
+                <div className="h-10 w-24 bg-muted/20 animate-pulse rounded-md" />
               ) : user ? (
                 <>
-                  <Button variant="ghost" asChild className="hidden sm:inline-flex">
+                  <Button variant="ghost" asChild className="hidden sm:inline-flex text-[var(--header-link-color)] hover:text-[var(--header-link-hover-color)] hover:bg-white/10">
                     <Link href="/dashboard" onClick={handleDashboardClick}>
                       {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Dashboard
@@ -176,7 +182,7 @@ export function LandingHeader() {
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" asChild className="hidden sm:inline-flex">
+                  <Button variant="ghost" asChild className="hidden sm:inline-flex text-[var(--header-link-color)] hover:text-[var(--header-link-hover-color)] hover:bg-white/10">
                     <Link href="/login">Log In</Link>
                   </Button>
                   <Button asChild className="hidden sm:inline-flex bg-accent text-accent-foreground hover:bg-accent/90">
@@ -187,19 +193,25 @@ export function LandingHeader() {
           )}
            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="md:hidden">
+                <Button variant="outline" size="icon" className="md:hidden bg-transparent border-white/50 text-white hover:bg-white/10 hover:text-white">
                   <Menu className="h-5 w-5" />
                   <span className="sr-only">Open menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left">
+              <SheetContent 
+                side="left" 
+                style={{ 
+                    backgroundColor: typography?.mobileMenuBackgroundColor,
+                    color: typography?.mobileMenuTextColor,
+                }}
+              >
                 <nav className="grid gap-6 text-lg font-medium pt-8">
                   {(headerSettings?.showLogo ?? true) && <Logo siteName={settings?.siteName} logoUrl={settings?.logoUrl} />}
                   {(headerSettings?.showNav ?? true) && publicNavLinks.map((link) => (
                     <Link
                       key={link.href}
                       href={link.href}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="hover:text-primary"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       {link.label}

@@ -1,5 +1,5 @@
 
-      import type { PlanId } from './plans';
+import type { PlanId } from './plans';
 import type { Timestamp } from 'firebase/firestore';
 
 export interface UserProfile {
@@ -188,6 +188,13 @@ export interface BrandingSettings {
         email: string;
         phone: string;
         address: string;
+    };
+    typography?: {
+        headerLinkColor: string;
+        headerLinkHoverColor: string;
+        headerLinkActiveColor: string;
+        mobileMenuBackgroundColor: string;
+        mobileMenuTextColor: string;
     };
     lastUpdated?: Timestamp | string;
 }
