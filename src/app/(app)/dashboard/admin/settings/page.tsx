@@ -233,6 +233,8 @@ function PromotionsTab() {
 }
 
 function ApiSettingsTab() {
+    const [isLiveMode, setIsLiveMode] = React.useState(false);
+
     return (
         <Card>
             <CardHeader>
@@ -241,13 +243,33 @@ function ApiSettingsTab() {
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="space-y-4 p-4 border rounded-lg">
-                    <h3 className="font-medium text-lg">PawaPay Credentials</h3>
-                    <div className="grid gap-2">
-                        <Label htmlFor="pawapay-token">API Token</Label>
-                        <Input id="pawapay-token" type="password" placeholder="Enter your PawaPay API Token" />
+                    <div className="flex justify-between items-center">
+                        <h3 className="font-medium text-lg">PawaPay Credentials</h3>
+                         <div className="flex items-center space-x-2">
+                            <Label htmlFor="live-mode">Live Mode</Label>
+                            <Switch id="live-mode" checked={isLiveMode} onCheckedChange={setIsLiveMode} />
+                        </div>
                     </div>
+                     <Tabs defaultValue="sandbox">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="sandbox">Sandbox</TabsTrigger>
+                            <TabsTrigger value="live">Live</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="sandbox" className="mt-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="pawapay-sandbox-token">Sandbox API Token</Label>
+                                <Input id="pawapay-sandbox-token" type="password" placeholder="Enter your Sandbox Token" />
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="live" className="mt-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="pawapay-live-token">Live API Token</Label>
+                                <Input id="pawapay-live-token" type="password" placeholder="Enter your Live Token" />
+                            </div>
+                        </TabsContent>
+                    </Tabs>
                     <p className="text-xs text-muted-foreground">
-                        This token is used for processing online mobile money payments. Keep it secure.
+                        Tokens are used for processing online mobile money payments. Keep them secure. Use Sandbox for testing.
                     </p>
                 </div>
                  <div className="flex items-center justify-between rounded-lg border p-4">
@@ -302,3 +324,5 @@ export default function AdminSettingsPage() {
         </div>
     );
 }
+
+    
