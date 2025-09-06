@@ -61,6 +61,8 @@ import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { Notifications } from '@/components/notifications';
+import { onSnapshot, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 
 const navItems = [
@@ -92,27 +94,36 @@ export default function AppLayout({
     const [loadingData, setLoadingData] = React.useState(true);
 
     React.useEffect(() => {
-        const fetchUserData = async () => {
-            if (user) {
-                try {
-                    setLoadingData(true);
-                    const [userOrgs, profile] = await Promise.all([
-                        getOrganizersByUserId(user.uid),
-                        getUserProfile(user.uid)
-                    ]);
-                    setOrganizers(userOrgs);
-                    setUserProfile(profile);
-                } catch (error) {
-                    toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch your profile data.' });
-                } finally {
-                    setLoadingData(false);
-                }
-            } else if (!authLoading) {
-                 setLoadingData(false);
+        if (authLoading) return;
+        if (!user) {
+            setLoadingData(false);
+            setUserProfile(null);
+            setOrganizers([]);
+            return;
+        }
+
+        setLoadingData(true);
+        const userDocRef = doc(db, 'users', user.uid);
+        const unsubscribe = onSnapshot(userDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                const profile = docSnap.data() as UserProfile;
+                setUserProfile(profile);
+            } else {
+                // If profile doesn't exist, create it. This also handles the admin assignment.
+                const profile = await getUserProfile(user.uid);
+                setUserProfile(profile);
             }
-        };
-        fetchUserData();
-    }, [user, authLoading, toast]);
+
+            // Fetch organizations once after profile is set/fetched.
+            if (organizers.length === 0) {
+              const orgs = await getOrganizersByUserId(user.uid);
+              setOrganizers(orgs);
+            }
+            setLoadingData(false);
+        });
+
+        return () => unsubscribe();
+    }, [user, authLoading, organizers.length]);
 
 
     const toggleSidebar = () => {

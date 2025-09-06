@@ -12,15 +12,15 @@ import {
     signOut,
     User
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, arrayUnion, increment, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, arrayUnion, increment, collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import type { PlanId } from '@/lib/plans';
 import { addNotification } from './notificationService';
 
-// Helper function to check if any users exist
-const areThereAnyUsers = async (): Promise<boolean> => {
+// Helper function to check if any admin users exist
+const areThereAnyAdmins = async (): Promise<boolean> => {
     const usersCollectionRef = collection(db, 'users');
-    const q = query(usersCollectionRef, limit(1));
+    const q = query(usersCollectionRef, where("isAdmin", "==", true), limit(1));
     const snapshot = await getDocs(q);
     return !snapshot.empty;
 };
@@ -33,12 +33,22 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
     const docSnap = await getDoc(userDocRef);
 
     if (docSnap.exists()) {
-        return docSnap.data() as UserProfile;
+        const profile = docSnap.data() as UserProfile;
+        // If the user exists but isn't an admin, check if they should be.
+        if (!profile.isAdmin) {
+            const hasAdmin = await areThereAnyAdmins();
+            if (!hasAdmin) {
+                await updateDoc(userDocRef, { isAdmin: true });
+                 addNotification(uid, "You have been granted admin privileges.", 'event', '/dashboard/admin');
+                return { ...profile, isAdmin: true };
+            }
+        }
+        return profile;
     } else {
         // If profile doesn't exist, create it for a new user
         const user = auth.currentUser;
         if (user) {
-            const isFirstUser = !(await areThereAnyUsers());
+            const hasAdmin = await areThereAnyAdmins();
 
             const newUserProfile: UserProfile = {
                 uid: user.uid,
@@ -47,11 +57,11 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
                 planId: 'hobby', // Default to free plan
                 countryCode: 'US', // Default to USA
                 totalPaidOut: 0,
-                isAdmin: isFirstUser, // Make the first user an admin
+                isAdmin: !hasAdmin, // Make the user an admin if none exist
             };
             await setDoc(userDocRef, newUserProfile);
             addNotification(user.uid, "Welcome to GoPass! We're glad to have you here.", 'welcome', '/dashboard');
-            if (isFirstUser) {
+            if (newUserProfile.isAdmin) {
                 addNotification(user.uid, "You have been granted admin privileges.", 'event', '/dashboard/admin');
             }
             return newUserProfile;
