@@ -67,7 +67,7 @@ export function Notifications({ userId }: { userId: string }) {
                     <Link href={notification.link || '#'}>
                         <p className="text-sm font-medium">{notification.message}</p>
                         <p className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(notification.createdAt.toDate(), { addSuffix: true })}
+                            {notification.createdAt ? formatDistanceToNow(notification.createdAt.toDate(), { addSuffix: true }) : 'Just now'}
                         </p>
                     </Link>
                 </DropdownMenuItem>
