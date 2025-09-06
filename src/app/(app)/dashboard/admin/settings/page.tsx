@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, KeyRound } from 'lucide-react';
 import { PLANS } from '@/lib/plans';
 import { getAllUserProfiles } from '@/services/userService';
 import type { UserProfile } from '@/lib/types';
@@ -232,16 +232,49 @@ function PromotionsTab() {
     );
 }
 
+function ApiSettingsTab() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>API Configuration</CardTitle>
+                <CardDescription>Manage third-party API keys and platform API access.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+                <div className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-medium text-lg">PawaPay Credentials</h3>
+                    <div className="grid gap-2">
+                        <Label htmlFor="pawapay-token">API Token</Label>
+                        <Input id="pawapay-token" type="password" placeholder="Enter your PawaPay API Token" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        This token is used for processing online mobile money payments. Keep it secure.
+                    </p>
+                </div>
+                 <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="gopass-api" className="text-base">GoPass API Access</Label>
+                        <p className="text-sm text-muted-foreground">
+                           Enable or disable the ability for users to access GoPass features via an API.
+                        </p>
+                    </div>
+                    <Switch id="gopass-api" />
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function AdminSettingsPage() {
     return (
         <div className="grid gap-6">
             <Tabs defaultValue="platform" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-6">
+                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 mb-6">
                     <TabsTrigger value="platform">Platform</TabsTrigger>
                     <TabsTrigger value="features">Features</TabsTrigger>
                     <TabsTrigger value="plans">Plans</TabsTrigger>
                     <TabsTrigger value="team">Team</TabsTrigger>
                     <TabsTrigger value="promotions">Promotions</TabsTrigger>
+                    <TabsTrigger value="api">API</TabsTrigger>
                 </TabsList>
                 <TabsContent value="platform">
                     <PlatformSettingsTab />
@@ -257,6 +290,9 @@ export default function AdminSettingsPage() {
                 </TabsContent>
                 <TabsContent value="promotions">
                     <PromotionsTab />
+                </TabsContent>
+                <TabsContent value="api">
+                    <ApiSettingsTab />
                 </TabsContent>
             </Tabs>
 
