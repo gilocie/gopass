@@ -1,5 +1,5 @@
 
-      import { CurrencyProvider } from "@/contexts/CurrencyContext";
+import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { LandingHeader } from "@/components/landing-header";
 
 export default async function PublicLayout({
