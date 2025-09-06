@@ -38,7 +38,7 @@ export default function Home() {
     <div className="flex flex-col flex-grow">
       <section className="relative text-center py-20 lg:py-32 flex items-center justify-center">
           {heroImageUrl && (
-              <Image src={heroImageUrl} alt="Hero background" layout="fill" objectFit="cover" className="z-0" data-ai-hint="event crowd" />
+              <Image src={heroImageUrl} alt="Hero background" fill style={{ objectFit: 'cover' }} className="z-0" data-ai-hint="event crowd" />
           )}
            <div className="absolute inset-0 bg-black/60 z-10" />
            <div className="container mx-auto px-4 sm:px-6 lg:px-8 z-20 text-white">
